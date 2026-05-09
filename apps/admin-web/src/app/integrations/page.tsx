@@ -4,6 +4,7 @@ import { Puzzle, Plus, CheckCircle2, AlertTriangle, XCircle, RefreshCw, External
 import clsx from 'clsx';
 import Modal from '@/components/ui/Modal';
 import Toast from '@/components/ui/Toast';
+import { useAppContext } from '@/context/AppContext';
 
 const integrations = [
   {
@@ -63,12 +64,12 @@ const statusColor = { Connected: 'text-green-400 border-green-500/30 bg-green-50
 const categories = ['All', 'Messaging', 'Data', 'Notification', 'Monitoring', 'Alerting', 'Automation', 'API'];
 
 export default function IntegrationsPage() {
+  const { showToast } = useAppContext();
   const [integrationList, setIntegrationList] = useState(integrations);
   const [catFilter, setCatFilter] = useState('All');
   const [refreshing, setRefreshing] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [newIntegration, setNewIntegration] = useState({ name: '', category: 'Messaging', description: '', url: '' });
-  const [toast, setToast] = useState<{ visible: boolean; msg: string; en: string }>({ visible: false, msg: '', en: '' });
 
   const filtered = integrationList.filter(i => catFilter === 'All' || i.category === catFilter);
   const connectedCount = integrationList.filter(i => i.status === 'Connected').length;
@@ -77,15 +78,15 @@ export default function IntegrationsPage() {
     setRefreshing(id);
     setTimeout(() => {
       setRefreshing(null);
-      setToast({ visible: true, msg: 'Đã đồng bộ lại dữ liệu!', en: 'Data re-synced successfully!' });
+      showToast('Đã đồng bộ lại dữ liệu!', 'Data re-synced successfully!', 'info');
     }, 1500);
   };
 
   const handleConnect = (id: string, name: string) => {
-    setToast({ visible: true, msg: `Đang kết nối tới ${name}...`, en: `Connecting to ${name}...` });
+    showToast(`Đang kết nối tới ${name}...`, `Connecting to ${name}...`, 'info');
     setTimeout(() => {
       setIntegrationList(prev => prev.map(i => i.id === id ? { ...i, status: 'Connected', lastSync: 'Just now' } : i));
-      setToast({ visible: true, msg: `Kết nối ${name} thành công!`, en: `${name} connected successfully!` });
+      showToast(`Kết nối ${name} thành công!`, `${name} connected successfully!`, 'P3');
     }, 2000);
   };
 
@@ -109,11 +110,11 @@ export default function IntegrationsPage() {
     setShowModal(false);
     setNewIntegration({ name: '', category: 'Messaging', description: '', url: '' });
     
-    setToast({ 
-      visible: true, 
-      msg: newIntegration.url ? `Đã kết nối và đồng bộ dữ liệu từ ${newIntegration.name}!` : `Đã thêm yêu cầu tích hợp ${newIntegration.name}!`, 
-      en: newIntegration.url ? `Connected and synced data from ${newIntegration.name}!` : `Added integration request for ${newIntegration.name}!` 
-    });
+    showToast(
+      newIntegration.url ? `Đã kết nối và đồng bộ dữ liệu từ ${newIntegration.name}!` : `Đã thêm yêu cầu tích hợp ${newIntegration.name}!`, 
+      newIntegration.url ? `Connected and synced data from ${newIntegration.name}!` : `Added integration request for ${newIntegration.name}!`,
+      'P3'
+    );
   };
 
   return (
@@ -297,12 +298,7 @@ export default function IntegrationsPage() {
         </div>
       </Modal>
 
-      <Toast 
-        isVisible={toast.visible} 
-        onClose={() => setToast({ ...toast, visible: false })}
-        message={toast.msg}
-        enMessage={toast.en}
-      />
+
     </div>
   );
 }

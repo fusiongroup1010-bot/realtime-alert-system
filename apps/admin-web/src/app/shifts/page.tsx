@@ -19,6 +19,7 @@ const initialMembers = [
 
 import Modal from '@/components/ui/Modal';
 import Toast from '@/components/ui/Toast';
+import { useAppContext } from '@/context/AppContext';
 
 const levelColors: Record<string, string> = {
   L1: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
@@ -27,11 +28,11 @@ const levelColors: Record<string, string> = {
 };
 
 export default function ShiftRosterPage() {
+  const { showToast } = useAppContext();
   const [staffMembers, setStaffMembers] = useState(initialMembers);
   const [activeShift, setActiveShift] = useState('ALL');
   const [showModal, setShowModal] = useState(false);
   const [editingMember, setEditingMember] = useState<any>(null);
-  const [toast, setToast] = useState<{ visible: boolean; msg: string; en: string }>({ visible: false, msg: '', en: '' });
 
   const filtered = staffMembers.filter(m => activeShift === 'ALL' || m.shift === activeShift);
   const onDuty = staffMembers.filter(m => m.status === 'On Duty').length;
@@ -60,21 +61,17 @@ export default function ShiftRosterPage() {
 
     setShowModal(false);
     setEditingMember(null);
-    setToast({
-      visible: true,
-      msg: editingMember ? 'Cập nhật nhân sự thành công!' : 'Thêm nhân sự mới thành công!',
-      en: editingMember ? 'Member updated successfully!' : 'New member added successfully!'
-    });
+    showToast(
+      editingMember ? 'Cập nhật nhân sự thành công!' : 'Thêm nhân sự mới thành công!',
+      editingMember ? 'Member updated successfully!' : 'New member added successfully!',
+      'P3'
+    );
   };
 
   const handleDelete = (id: string, name: string) => {
     if (confirm(`Bạn có chắc chắn muốn xóa ${name}? / Are you sure you want to delete ${name}?`)) {
       setStaffMembers(prev => prev.filter(m => m.id !== id));
-      setToast({
-        visible: true,
-        msg: `Đã xóa nhân sự ${name}`,
-        en: `Deleted member ${name}`
-      });
+      showToast(`Đã xóa nhân sự ${name}`, `Deleted member ${name}`, 'P1');
     }
   };
 
@@ -311,12 +308,7 @@ export default function ShiftRosterPage() {
         </form>
       </Modal>
 
-      <Toast 
-        isVisible={toast.visible} 
-        onClose={() => setToast({ ...toast, visible: false })}
-        message={toast.msg}
-        enMessage={toast.en}
-      />
+
     </div>
   );
 }

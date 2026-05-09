@@ -28,13 +28,12 @@ const typeColors: Record<string, string> = {
 
 
 export default function AuditHistoryPage() {
-  const { selectedDate } = useAppContext();
+  const { selectedDate, showToast } = useAppContext();
   const [typeFilter, setTypeFilter] = useState('ALL');
   const [search, setSearch] = useState('');
-  const [toast, setToast] = useState<{ visible: boolean; msg: string; en: string }>({ visible: false, msg: '', en: '' });
 
   const handleExport = () => {
-    setToast({ visible: true, msg: 'Đang chuẩn bị file CSV...', en: 'Preparing CSV file...' });
+    showToast('Đang chuẩn bị file CSV...', 'Preparing CSV file...', 'info');
     
     const headers = [
       { vi: 'Mã nhật ký', en: 'Log ID', key: 'id' },
@@ -48,7 +47,7 @@ export default function AuditHistoryPage() {
 
     setTimeout(() => {
       exportToExcel(auditLogs, headers, `Audit_Logs_${selectedDate}`);
-      setToast({ visible: true, msg: 'Đã tải xuống file nhật ký thành công!', en: 'Audit log downloaded successfully!' });
+      showToast('Đã tải xuống file nhật ký thành công!', 'Audit log downloaded successfully!', 'P3');
     }, 1500);
   };
 
@@ -79,12 +78,7 @@ export default function AuditHistoryPage() {
         </button>
       </div>
 
-      <Toast 
-        isVisible={toast.visible} 
-        onClose={() => setToast({ ...toast, visible: false })}
-        message={toast.msg}
-        enMessage={toast.en}
-      />
+
 
       <div className="grid grid-cols-3 gap-4">
         {[

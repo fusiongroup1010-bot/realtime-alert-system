@@ -13,26 +13,25 @@ const severityColors: Record<string, string> = {
 };
 
 export default function RulesPage() {
-  const { rules, addRule, updateRule, toggleRule: globalToggle, deleteRule: globalDelete } = useAppContext();
+  const { rules, addRule, updateRule, toggleRule: globalToggle, deleteRule: globalDelete, showToast } = useAppContext();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [showModal, setShowModal] = useState(false);
   const [editingRule, setEditingRule] = useState<any>(null);
-  const [toast, setToast] = useState<{ visible: boolean; msg: string; en: string }>({ visible: false, msg: '', en: '' });
 
   const toggleRule = (id: string, name: string, currentStatus: string) => {
     globalToggle(id);
-    setToast({
-      visible: true,
-      msg: currentStatus === 'Active' ? `Đã tạm dừng quy tắc ${name}` : `Đã kích hoạt quy tắc ${name}`,
-      en: currentStatus === 'Active' ? `Paused rule ${name}` : `Activated rule ${name}`
-    });
+    showToast(
+      currentStatus === 'Active' ? `Đã tạm dừng quy tắc ${name}` : `Đã kích hoạt quy tắc ${name}`,
+      currentStatus === 'Active' ? `Paused rule ${name}` : `Activated rule ${name}`,
+      'info'
+    );
   };
 
   const handleDelete = (id: string, name: string) => {
     if (confirm(`Bạn có chắc muốn xóa quy tắc ${name}? / Are you sure you want to delete ${name}?`)) {
       globalDelete(id);
-      setToast({ visible: true, msg: `Đã xóa quy tắc ${name}`, en: `Deleted rule ${name}` });
+      showToast(`Đã xóa quy tắc ${name}`, `Deleted rule ${name}`, 'P1');
     }
   };
 
@@ -58,11 +57,11 @@ export default function RulesPage() {
 
     setShowModal(false);
     setEditingRule(null);
-    setToast({
-      visible: true,
-      msg: editingRule ? 'Cập nhật quy tắc thành công!' : 'Tạo quy tắc mới thành công!',
-      en: editingRule ? 'Rule updated successfully!' : 'New rule created successfully!'
-    });
+    showToast(
+      editingRule ? 'Cập nhật quy tắc thành công!' : 'Tạo quy tắc mới thành công!',
+      editingRule ? 'Rule updated successfully!' : 'New rule created successfully!',
+      'P3'
+    );
   };
 
   const filtered = rules.filter(r => {
@@ -283,12 +282,7 @@ export default function RulesPage() {
         </form>
       </Modal>
 
-      <Toast 
-        isVisible={toast.visible} 
-        onClose={() => setToast({ ...toast, visible: false })}
-        message={toast.msg}
-        enMessage={toast.en}
-      />
+
     </div>
   );
 }
