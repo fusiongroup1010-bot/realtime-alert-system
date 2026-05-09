@@ -27,6 +27,16 @@ interface Incident {
 }
 
 type Role = 'Executor' | 'Manager';
+type SeverityType = 'P1' | 'P2' | 'P3' | 'info';
+
+export interface NotificationItem {
+  id: string;
+  msg: string;
+  en: string;
+  time: string;
+  severity: SeverityType;
+  read: boolean;
+}
 
 interface AppContextType {
   selectedDate: string;
@@ -41,7 +51,10 @@ interface AppContextType {
   handleIncidentAction: (id: string, actionType: 'ACK' | 'RESOLVE' | 'NOTIFY') => void;
   currentUserRole: Role;
   setCurrentUserRole: (role: Role) => void;
-  showToast: (msg: string, en?: string, type?: 'success' | 'info' | 'warning' | 'error') => void;
+  showToast: (msg: string, en?: string, type?: SeverityType) => void;
+  notifications: NotificationItem[];
+  addNotification: (msg: string, en: string, severity: SeverityType) => void;
+  markNotificationsRead: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -50,8 +63,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [currentTime, setCurrentTime] = useState('');
   const [currentUserRole, setCurrentUserRole] = useState<Role>('Executor');
-  const [toast, setToast] = useState<{ visible: boolean; msg: string; en: string; type: 'success' | 'info' | 'warning' | 'error' }>({ visible: false, msg: '', en: '', type: 'success' });
-
+  const [toast, setToast] = useState<{ visible: boolean; msg: string; en: string; type: SeverityType }>({ visible: false, msg: '', en: '', type: 'info' });
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [rules, setRules] = useState<Rule[]>([
     { id: 'R1', code: 'A1', name: 'ROAS Drop < 5.5', metric: 'ROAS', condition: '< 5.5', target: '#online-ops', severity: 'P1', cooldown: '15m', status: 'Active', triggers: 12 },
     { id: 'R2', code: 'A2', name: 'CS Response > 5m', metric: 'CS First Response', condition: '> 5 min', target: '#cs-realtime', severity: 'P2', cooldown: '10m', status: 'Active', triggers: 8 },
@@ -79,13 +92,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const showToast = (msg: string, en: string = '', type: 'success' | 'info' | 'warning' | 'error' = 'info') => {
+  const showToast = (msg: string, en: string = '', type: SeverityType = 'info') => {
     setToast({ visible: true, msg, en, type });
+  };
+
+  const addNotification = (msg: string, en: string, severity: SeverityType) => {
+    const newItem: NotificationItem = {
+      id: `NOTIF-${Date.now()}`,
+      msg,
+      en,
+      time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+      severity,
+      read: false
+    };
+    setNotifications(prev => [newItem, ...prev]);
+  };
+
+  const markNotificationsRead = () => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
   };
 
   const sendBrowserNotification = (title: string, body: string) => {
     if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification(title, { body, icon: '/favicon.ico' });
+      const notification = new Notification(title, { body, icon: '/favicon.ico' });
+      notification.onclick = function() {
+        window.open('https://fusiongroup1010-bot.github.io/realtime-alert-system/', '_blank');
+        window.focus();
+        this.close();
+      };
     }
   };
 
@@ -105,10 +139,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               hasChanges = true;
               
               // Trigger Notifications based on Role
+              const rule = rules.find(r => r.code === inc.ruleCode);
+              const severity = (rule ? rule.severity : 'P3') as SeverityType;
+
               if (currentUserRole === 'Executor') {
-                showToast(`Sự cố ${inc.id} đã bị chuyển lên quản lý`, 'Do chưa xử lý nên đã được chuyển lên cấp quản lý', 'warning');
+                showToast(`Sự cố ${inc.id} đã bị chuyển lên quản lý`, 'Do chưa xử lý nên đã được chuyển lên cấp quản lý', 'P2');
+                addNotification(`Sự cố ${inc.id} đã bị chuyển lên quản lý`, 'Escalated due to inactivity', 'P2');
               } else if (currentUserRole === 'Manager') {
-                showToast(`[PING] Sự cố ${inc.id} quá hạn SLA!`, 'Sự cố cần sự can thiệp của Quản lý', 'error');
+                showToast(`[PING] Sự cố ${inc.id} quá hạn SLA!`, 'Sự cố cần sự can thiệp của Quản lý', severity);
+                addNotification(`[PING] Sự cố ${inc.id} quá hạn SLA!`, 'Sự cố cần sự can thiệp của Quản lý', severity);
                 sendBrowserNotification('Báo Động SLA (Manager)', `Sự cố ${inc.id} vượt quá ngưỡng an toàn. Yêu cầu xử lý gấp!`);
               }
 
@@ -125,7 +164,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     updateTime();
     const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
-  }, [currentUserRole]);
+  }, [currentUserRole, rules]);
 
   const addRule = (newRule: Omit<Rule, 'id' | 'triggers'>) => {
     const rule: Rule = {
@@ -176,7 +215,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       rules, addRule, updateRule, toggleRule, deleteRule,
       incidents, handleIncidentAction,
       currentUserRole, setCurrentUserRole,
-      showToast
+      showToast, notifications, addNotification, markNotificationsRead
     }}>
       {children}
       <Toast 

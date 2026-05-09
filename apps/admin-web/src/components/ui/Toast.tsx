@@ -8,10 +8,10 @@ interface ToastProps {
   onClose: () => void;
   message: string;
   enMessage?: string;
-  type?: 'success' | 'info' | 'warning' | 'error';
+  type?: 'P1' | 'P2' | 'P3' | 'info';
 }
 
-export default function Toast({ isVisible, onClose, message, enMessage, type = 'success' }: ToastProps) {
+export default function Toast({ isVisible, onClose, message, enMessage, type = 'info' }: ToastProps) {
   useEffect(() => {
     if (isVisible) {
       const timer = setTimeout(() => {
@@ -25,19 +25,24 @@ export default function Toast({ isVisible, onClose, message, enMessage, type = '
     <AnimatePresence>
       {isVisible && (
         <motion.div
-          initial={{ opacity: 0, y: 50, x: '-50%' }}
-          animate={{ opacity: 1, y: 0, x: '-50%' }}
-          exit={{ opacity: 0, y: 20, x: '-50%' }}
-          className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[200] flex items-center space-x-3 px-5 py-3 rounded-xl bg-[#12182B] border border-borderSubtle shadow-[0_10px_30px_rgba(0,0,0,0.5)] min-w-[300px]"
+          initial={{ opacity: 0, x: 100 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: 100 }}
+          className={`fixed bottom-10 right-10 z-[200] flex items-center space-x-3 px-5 py-3 rounded-xl border shadow-[0_10px_30px_rgba(0,0,0,0.5)] min-w-[300px] backdrop-blur-md ${
+            type === 'P1' ? 'bg-red-950/80 border-red-500/50' : 
+            type === 'P2' ? 'bg-orange-950/80 border-orange-500/50' :
+            type === 'P3' ? 'bg-green-950/80 border-green-500/50' :
+            'bg-[#12182B]/90 border-borderSubtle'
+          }`}
         >
           <div className={`p-1.5 rounded-lg ${
-            type === 'success' ? 'bg-green-500/20 text-green-400' : 
-            type === 'warning' ? 'bg-orange-500/20 text-orange-400' :
-            type === 'error' ? 'bg-red-500/20 text-red-400' :
+            type === 'P3' ? 'bg-green-500/20 text-green-400' : 
+            type === 'P2' ? 'bg-orange-500/20 text-orange-400' :
+            type === 'P1' ? 'bg-red-500/20 text-red-400' :
             'bg-blue-500/20 text-blue-400'
           }`}>
-            {type === 'success' ? <CheckCircle className="w-5 h-5" /> : 
-             type === 'error' ? <X className="w-5 h-5" /> :
+            {type === 'P3' ? <CheckCircle className="w-5 h-5" /> : 
+             type === 'P1' ? <X className="w-5 h-5" /> :
              <Info className="w-5 h-5" />}
           </div>
           <div className="flex-1">
