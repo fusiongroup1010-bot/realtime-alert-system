@@ -7,7 +7,7 @@ import TopNav from '@/components/layout/TopNav';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata = {
-  title: 'Hi Fusion SOC',
+  title: 'Alert System',
   description: 'Realtime Alert & Escalation System Control Tower',
 };
 

@@ -39,7 +39,7 @@ export default function Sidebar() {
         <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center mr-3 shadow-[0_0_15px_rgba(99,102,241,0.5)]">
           <Sparkles className="w-4 h-4 text-white" />
         </div>
-        <span className="font-bold text-lg tracking-tight text-white">Hi Fusion SOC</span>
+        <span className="font-bold text-lg tracking-tight text-white">Alert System</span>
       </div>
       
       <div className="px-6 py-4 border-b border-borderSubtle flex items-center justify-between">

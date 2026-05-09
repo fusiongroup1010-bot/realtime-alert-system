@@ -30,7 +30,7 @@ export default function TopNav() {
           <span className="text-[10px] text-textSecondary uppercase font-medium">{pageName.en}</span>
         </h1>
         <div className="hidden md:flex items-center px-2 py-1 rounded bg-surface border border-borderSubtle">
-          <span className="text-xs text-textSecondary font-mono">Hi Fusion / {pageName.en.toLowerCase().replace(' ', '-')}</span>
+          <span className="text-xs text-textSecondary font-mono">Alert System / {pageName.en.toLowerCase().replace(' ', '-')}</span>
         </div>
       </div>
       
