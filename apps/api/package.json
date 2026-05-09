@@ -1,0 +1,24 @@
+{
+  "name": "@realtime-alert/api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@realtime-alert/db": "workspace:*",
+    "@realtime-alert/shared": "workspace:*",
+    "@slack/bolt": "^4.0.0",
+    "fastify": "^4.26.2",
+    "@fastify/cors": "^9.0.1",
+    "dotenv": "^16.4.5",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "tsx": "^4.7.1",
+    "typescript": "^5.6.2"
+  }
+}
