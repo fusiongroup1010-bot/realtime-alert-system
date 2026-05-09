@@ -7,7 +7,7 @@ import Toast from '@/components/ui/Toast';
 import { exportToExcel } from '@/utils/export';
 
 const auditLogs = [
-  { id: 'LOG-001', time: '14:05:23', user: 'ceo_fusion', action: 'ESCALATE', target: 'ALT-101', detail: 'Manually escalated ROAS alert to P1', type: 'incident', icon: AlertTriangle, color: 'text-red-400', bg: 'bg-red-500/10' },
+  { id: 'LOG-001', time: '14:05:23', user: 'manager_fusion', action: 'ESCALATE', target: 'ALT-101', detail: 'Manually escalated ROAS alert to P1', type: 'incident', icon: AlertTriangle, color: 'text-red-400', bg: 'bg-red-500/10' },
   { id: 'LOG-002', time: '13:55:10', user: 'leader_online', action: 'ACK', target: 'ALT-102', detail: 'Acknowledged stock cover alert', type: 'incident', icon: CheckCircle2, color: 'text-blue-400', bg: 'bg-blue-500/10' },
   { id: 'LOG-003', time: '13:42:01', user: 'system', action: 'TRIGGER', target: 'Rule A3', detail: 'Auto-triggered: Stock Cover dropped to 1.2x', type: 'system', icon: Bell, color: 'text-orange-400', bg: 'bg-orange-500/10' },
   { id: 'LOG-004', time: '13:30:00', user: 'admin', action: 'UPDATE_RULE', target: 'Rule A1', detail: 'Changed ROAS threshold from 5.0 to 5.5', type: 'config', icon: Settings, color: 'text-purple-400', bg: 'bg-purple-500/10' },

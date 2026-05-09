@@ -99,7 +99,7 @@ export default function Sidebar() {
             <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-resolved rounded-full border-2 border-background"></div>
           </div>
           <div className="ml-3 overflow-hidden">
-            <p className="text-sm font-medium text-white truncate">Tháp CEO / CEO Tower</p>
+            <p className="text-sm font-medium text-white truncate">Báo Quản lý / Notify to Manager</p>
             <p className="text-xs text-textSecondary truncate">Truy Cập Hệ Thống / Control Access</p>
           </div>
         </div>
