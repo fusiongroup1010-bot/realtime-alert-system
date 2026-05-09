@@ -39,7 +39,7 @@ const statusLabel: Record<string, string> = {
 
 
 export default function LiveIncidentsPage() {
-  const { selectedDate, rules, incidents, handleIncidentAction } = useAppContext();
+  const { selectedDate, rules, incidents, handleIncidentAction, showToast } = useAppContext();
   const [filter, setFilter] = useState<string>('ALL');
   const [search, setSearch] = useState('');
   const [refreshing, setRefreshing] = useState(false);

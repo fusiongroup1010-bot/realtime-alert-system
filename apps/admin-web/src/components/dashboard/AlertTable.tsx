@@ -42,7 +42,7 @@ export default function AlertTable() {
 
     setTimeout(() => {
       exportToExcel(dataToExport, headers, `Alerts_Summary_${new Date().toISOString().split('T')[0]}`);
-      showToast('Đã tải xuống file alerts_summary.csv!', 'Downloaded alerts_summary.csv!', 'success');
+      showToast('Đã tải xuống file alerts_summary.csv!', 'Downloaded alerts_summary.csv!', 'P3');
     }, 1500);
   };
 
