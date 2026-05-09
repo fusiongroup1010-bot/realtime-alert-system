@@ -163,7 +163,10 @@ export default function AlertTable() {
                         "text-green-400"
                       )}>
                         {alert.status === 'RESOLVED' && <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />}
-                        {alert.status}
+                        {alert.status === 'NEW' ? 'Mới / New' : 
+                         alert.status === 'PROCESSING' ? 'Đang xử lý / Processing' : 
+                         alert.status === 'RESOLVED' ? 'Xong / Resolved' : 
+                         'Báo Quản lý / Notify to Manager'}
                       </span>
                     </td>
                     <td className="px-6 py-4">

@@ -17,6 +17,7 @@ const statusConfig: Record<string, string> = {
   NEW: 'text-red-400',
   PROCESSING: 'text-blue-400',
   NOTIFY_CEO: 'text-purple-400',
+  ESCALATED: 'text-red-500 animate-pulse',
   RESOLVED: 'text-green-400',
 };
 
@@ -24,13 +25,15 @@ const statusBg: Record<string, string> = {
   NEW: 'bg-red-500/10 border-red-500/20 text-red-400',
   PROCESSING: 'bg-blue-500/10 border-blue-500/20 text-blue-400',
   NOTIFY_CEO: 'bg-purple-500/10 border-purple-500/20 text-purple-400',
+  ESCALATED: 'bg-red-500/10 border-red-500/20 text-red-500 animate-pulse',
   RESOLVED: 'bg-green-500/10 border-green-500/20 text-green-400',
 };
 
 const statusLabel: Record<string, string> = {
   NEW: 'Mới / New',
   PROCESSING: 'Đang xử lý / Processing',
-  NOTIFY_CEO: 'Báo CEO / Notify CEO',
+  NOTIFY_CEO: 'Báo Quản lý / Notify to Manager',
+  ESCALATED: 'Báo Quản lý / Notify to Manager',
   RESOLVED: 'Xong / Resolved',
 };
 
@@ -76,7 +79,7 @@ export default function LiveIncidentsPage() {
     const actionNames: Record<string, { vi: string, en: string }> = {
       ACK: { vi: 'Xác nhận', en: 'Acknowledge' },
       RESOLVE: { vi: 'Xử lý xong', en: 'Resolved' },
-      NOTIFY: { vi: 'Báo CEO', en: 'Notified CEO' }
+      NOTIFY: { vi: 'Báo Quản lý', en: 'Notified Manager' }
     };
 
     setToast({ 
@@ -107,7 +110,7 @@ export default function LiveIncidentsPage() {
     ALL: incidents.length,
     NEW: incidents.filter(i => i.status === 'NEW').length,
     PROCESSING: incidents.filter(i => i.status === 'PROCESSING').length,
-    NOTIFY_CEO: incidents.filter(i => i.status === 'NOTIFY_CEO').length,
+    NOTIFY_CEO: incidents.filter(i => i.status === 'NOTIFY_CEO' || i.status === 'ESCALATED').length,
     RESOLVED: incidents.filter(i => i.status === 'RESOLVED').length,
   };
 
@@ -155,7 +158,7 @@ export default function LiveIncidentsPage() {
         {[
           { vi: 'Mới', en: 'New', count: counts.NEW, color: 'text-red-400', dot: 'bg-red-500', glow: 'shadow-[0_0_8px_rgba(239,68,68,0.6)]' },
           { vi: 'Đang xử lý', en: 'Processing', count: counts.PROCESSING, color: 'text-blue-400', dot: 'bg-blue-500', glow: '' },
-          { vi: 'Thông báo CEO', en: 'Notify CEO', count: counts.NOTIFY_CEO, color: 'text-purple-400', dot: 'bg-purple-500', glow: '' },
+          { vi: 'Báo Quản lý', en: 'Notify Manager', count: counts.NOTIFY_CEO, color: 'text-purple-400', dot: 'bg-purple-500', glow: '' },
           { vi: 'Đã xử lý hôm nay', en: 'Resolved Today', count: counts.RESOLVED, color: 'text-green-400', dot: 'bg-green-500', glow: '' },
         ].map(s => (
           <div key={s.en} className="glass-panel rounded-xl p-4 flex items-center space-x-3">
@@ -180,7 +183,7 @@ export default function LiveIncidentsPage() {
               { vi: 'Tất cả', en: 'ALL' },
               { vi: 'Mới', en: 'NEW' },
               { vi: 'Đang xử lý', en: 'PROCESSING' },
-              { vi: 'Báo CEO', en: 'NOTIFY_CEO' },
+              { vi: 'Báo Quản lý', en: 'NOTIFY_CEO' },
               { vi: 'Xong', en: 'RESOLVED' }
             ]).map(s => (
               <button
@@ -313,7 +316,7 @@ export default function LiveIncidentsPage() {
                       )}>
                         {incident.status === 'RESOLVED' && <CheckCircle2 className="w-3 h-3 mr-1" />}
                         {incident.status === 'NEW' && <Zap className="w-3 h-3 mr-1" />}
-                        {incident.status === 'NOTIFY_CEO' && <Bell className="w-3 h-3 mr-1" />}
+                        {(incident.status === 'NOTIFY_CEO' || incident.status === 'ESCALATED') && <Bell className="w-3 h-3 mr-1" />}
                         {statusLabel[incident.status] || incident.status}
                       </span>
                     </td>
@@ -351,7 +354,7 @@ export default function LiveIncidentsPage() {
                             className="px-3 py-1 text-[10px] font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded hover:bg-purple-500/30 transition-all uppercase flex items-center"
                           >
                             <Bell className="w-3 h-3 mr-1" />
-                            Báo CEO / Notify
+                            Báo Quản lý / Notify
                           </button>
                         )}
                         <button className="p-1.5 text-textSecondary hover:text-white bg-background border border-borderSubtle rounded hover:border-white/20 transition-all">

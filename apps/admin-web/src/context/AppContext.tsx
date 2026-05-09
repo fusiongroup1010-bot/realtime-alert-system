@@ -1,6 +1,6 @@
 'use client';
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import Toast from '@/components/ui/Toast';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import Toast, { ToastData, SeverityType } from '@/components/ui/Toast';
 
 interface Rule {
   id: string;
@@ -27,7 +27,6 @@ interface Incident {
 }
 
 type Role = 'Executor' | 'Manager';
-type SeverityType = 'P1' | 'P2' | 'P3' | 'info';
 
 export interface NotificationItem {
   id: string;
@@ -36,6 +35,7 @@ export interface NotificationItem {
   time: string;
   severity: SeverityType;
   read: boolean;
+  incidentId: string;
 }
 
 interface AppContextType {
@@ -53,7 +53,7 @@ interface AppContextType {
   setCurrentUserRole: (role: Role) => void;
   showToast: (msg: string, en?: string, type?: SeverityType) => void;
   notifications: NotificationItem[];
-  addNotification: (msg: string, en: string, severity: SeverityType) => void;
+  addNotification: (msg: string, en: string, severity: SeverityType, incidentId: string) => void;
   markNotificationsRead: () => void;
 }
 
@@ -63,8 +63,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [currentTime, setCurrentTime] = useState('');
   const [currentUserRole, setCurrentUserRole] = useState<Role>('Executor');
-  const [toast, setToast] = useState<{ visible: boolean; msg: string; en: string; type: SeverityType }>({ visible: false, msg: '', en: '', type: 'info' });
+  const [activeToasts, setActiveToasts] = useState<ToastData[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  
+  // Refs to avoid stale closures in interval
+  const incidentsRef = useRef<Incident[]>([]);
+  const rulesRef = useRef<Rule[]>([]);
+  const roleRef = useRef<Role>('Executor');
+
   const [rules, setRules] = useState<Rule[]>([
     { id: 'R1', code: 'A1', name: 'ROAS Drop < 5.5', metric: 'ROAS', condition: '< 5.5', target: '#online-ops', severity: 'P1', cooldown: '15m', status: 'Active', triggers: 12 },
     { id: 'R2', code: 'A2', name: 'CS Response > 5m', metric: 'CS First Response', condition: '> 5 min', target: '#cs-realtime', severity: 'P2', cooldown: '10m', status: 'Active', triggers: 8 },
@@ -80,10 +86,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     { id: 'ALT-103', ruleCode: 'A2', time: '13:10', status: 'RESOLVED', team: 'Customer Service', assignee: 'Le Van C', slaDeadline: null, dept: 'CS' },
     { id: 'ALT-104', ruleCode: 'A4', time: '11:30', status: 'NOTIFY_CEO', team: 'Offline Sales', assignee: 'Pham Thi D', slaDeadline: null, dept: 'Offline' },
     { id: 'ALT-105', ruleCode: 'A1', time: '10:15', status: 'RESOLVED', team: 'Online Sales', assignee: 'Hoang Van E', slaDeadline: null, dept: 'Online' },
-    { id: 'ALT-106', ruleCode: 'A5', time: '09:50', status: 'NEW', team: 'Logistics', assignee: 'Vu Thi F', slaDeadline: new Date(Date.now() + 1 * 60000).toISOString(), dept: 'Logistics' }, // Near expiry for testing
+    { id: 'ALT-106', ruleCode: 'A5', time: '09:50', status: 'NEW', team: 'Logistics', assignee: 'Vu Thi F', slaDeadline: new Date(Date.now() + 1 * 60000).toISOString(), dept: 'Logistics' },
     { id: 'ALT-107', ruleCode: 'A6', time: '09:20', status: 'PROCESSING', team: 'Online Sales', assignee: 'Nguyen Van G', slaDeadline: new Date(Date.now() + 2 * 60000).toISOString(), dept: 'Online' },
     { id: 'ALT-108', ruleCode: 'A2', time: '08:45', status: 'RESOLVED', team: 'Customer Service', assignee: 'Le Thi H', slaDeadline: null, dept: 'CS' },
   ]);
+
+  useEffect(() => {
+    incidentsRef.current = incidents;
+    rulesRef.current = rules;
+    roleRef.current = currentUserRole;
+  }, [incidents, rules, currentUserRole]);
 
   // Request Notification Permission
   useEffect(() => {
@@ -92,20 +104,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const showToast = (msg: string, en: string = '', type: SeverityType = 'info') => {
-    setToast({ visible: true, msg, en, type });
+  const showToast = (message: string, enMessage: string = '', type: SeverityType = 'info', incidentId?: string) => {
+    const id = incidentId ? `toast-${incidentId}` : `toast-${Date.now()}-${Math.random()}`;
+    setActiveToasts(prev => {
+      // Avoid duplicate toasts for the same incident
+      if (incidentId && prev.some(t => t.id === id)) return prev;
+      return [...prev, { id, message, enMessage, type }];
+    });
   };
 
-  const addNotification = (msg: string, en: string, severity: SeverityType) => {
-    const newItem: NotificationItem = {
-      id: `NOTIF-${Date.now()}`,
-      msg,
-      en,
-      time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-      severity,
-      read: false
-    };
-    setNotifications(prev => [newItem, ...prev]);
+  const removeToast = (id: string) => {
+    setActiveToasts(prev => prev.filter(t => t.id !== id));
+  };
+
+  const addNotification = (msg: string, en: string, severity: SeverityType, incidentId: string) => {
+    setNotifications(prev => {
+      // Prevent duplicates for same incident
+      if (prev.some(n => n.incidentId === incidentId)) return prev;
+      
+      const newItem: NotificationItem = {
+        id: `NOTIF-${Date.now()}`,
+        msg,
+        en,
+        time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+        severity,
+        read: false,
+        incidentId
+      };
+      return [newItem, ...prev];
+    });
   };
 
   const markNotificationsRead = () => {
@@ -129,42 +156,43 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const now = new Date();
       setCurrentTime(now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
       
-      // Auto Escalation Logic
-      setIncidents(prevIncidents => {
-        let hasChanges = false;
-        const updated = prevIncidents.map(inc => {
-          if ((inc.status === 'NEW' || inc.status === 'PROCESSING') && inc.slaDeadline) {
-            const targetTime = new Date(inc.slaDeadline).getTime();
-            if (now.getTime() >= targetTime) {
-              hasChanges = true;
-              
-              // Trigger Notifications based on Role
-              const rule = rules.find(r => r.code === inc.ruleCode);
-              const severity = (rule ? rule.severity : 'P3') as SeverityType;
+      // Auto Escalation Logic - Process one by one to avoid state race conditions
+      const currentIncidents = incidentsRef.current;
+      const currentRules = rulesRef.current;
+      const currentRole = roleRef.current;
 
-              if (currentUserRole === 'Executor') {
-                showToast(`Sự cố ${inc.id} đã bị chuyển lên quản lý`, 'Do chưa xử lý nên đã được chuyển lên cấp quản lý', 'P2');
-                addNotification(`Sự cố ${inc.id} đã bị chuyển lên quản lý`, 'Escalated due to inactivity', 'P2');
-              } else if (currentUserRole === 'Manager') {
-                showToast(`[PING] Sự cố ${inc.id} quá hạn SLA!`, 'Sự cố cần sự can thiệp của Quản lý', severity);
-                addNotification(`[PING] Sự cố ${inc.id} quá hạn SLA!`, 'Sự cố cần sự can thiệp của Quản lý', severity);
-                sendBrowserNotification('Báo Động SLA (Manager)', `Sự cố ${inc.id} vượt quá ngưỡng an toàn. Yêu cầu xử lý gấp!`);
-              }
+      const toEscalate = currentIncidents.filter(inc => 
+        (inc.status === 'NEW' || inc.status === 'PROCESSING') && 
+        inc.slaDeadline && 
+        now.getTime() >= new Date(inc.slaDeadline).getTime()
+      );
 
-              return { ...inc, status: 'ESCALATED', slaDeadline: null };
-            }
+      if (toEscalate.length > 0) {
+        toEscalate.forEach(inc => {
+          const rule = currentRules.find(r => r.code === inc.ruleCode);
+          const severity = (rule ? rule.severity : 'P3') as SeverityType;
+
+          if (currentRole === 'Executor') {
+            showToast(`Sự cố ${inc.id} đã bị chuyển lên quản lý`, 'Do chưa xử lý nên đã được chuyển lên cấp quản lý', 'P2', inc.id);
+            addNotification(`Sự cố ${inc.id} đã bị chuyển lên quản lý`, 'Escalated due to inactivity', 'P2', inc.id);
+          } else if (currentRole === 'Manager') {
+            showToast(`[PING] Sự cố ${inc.id} quá hạn SLA!`, 'Sự cố cần sự can thiệp của Quản lý', severity, inc.id);
+            addNotification(`[PING] Sự cố ${inc.id} quá hạn SLA!`, 'Sự cố cần sự can thiệp của Quản lý', severity, inc.id);
+            sendBrowserNotification('Báo Động SLA (Manager)', `Sự cố ${inc.id} vượt quá ngưỡng an toàn. Yêu cầu xử lý gấp!`);
           }
-          return inc;
         });
-        
-        return hasChanges ? updated : prevIncidents;
-      });
+
+        setIncidents(prev => prev.map(inc => {
+          const escalated = toEscalate.find(e => e.id === inc.id);
+          return escalated ? { ...inc, status: 'ESCALATED', slaDeadline: null } : inc;
+        }));
+      }
     };
     
     updateTime();
     const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
-  }, [currentUserRole, rules]);
+  }, []);
 
   const addRule = (newRule: Omit<Rule, 'id' | 'triggers'>) => {
     const rule: Rule = {
@@ -190,11 +218,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const handleIncidentAction = (id: string, actionType: 'ACK' | 'RESOLVE' | 'NOTIFY') => {
     setIncidents(prev => prev.map(inc => {
       if (inc.id === id) {
+        // Remove corresponding toast when handled
+        removeToast(`toast-${id}`);
+        
         if (actionType === 'ACK') {
           return { 
             ...inc, 
             status: 'PROCESSING', 
-            // 10 minutes for PROCESSING
             slaDeadline: new Date(Date.now() + 10 * 60000).toISOString() 
           };
         }
@@ -218,13 +248,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       showToast, notifications, addNotification, markNotificationsRead
     }}>
       {children}
-      <Toast 
-        isVisible={toast.visible} 
-        onClose={() => setToast(prev => ({ ...prev, visible: false }))}
-        message={toast.msg}
-        enMessage={toast.en}
-        type={toast.type as any}
-      />
+      <Toast toasts={activeToasts} onClose={removeToast} />
     </AppContext.Provider>
   );
 }
