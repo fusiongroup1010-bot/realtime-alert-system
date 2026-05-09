@@ -17,7 +17,7 @@ interface ToastContainerProps {
   onClose: (id: string) => void;
 }
 
-export default function Toast({ toasts, onClose }: ToastContainerProps) {
+export default function Toast({ toasts = [], onClose }: ToastContainerProps) {
   return (
     <div className="fixed bottom-10 right-10 z-[200] flex flex-col gap-3 pointer-events-none">
       <AnimatePresence>

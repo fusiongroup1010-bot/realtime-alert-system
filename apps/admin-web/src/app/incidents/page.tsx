@@ -43,18 +43,17 @@ export default function LiveIncidentsPage() {
   const [filter, setFilter] = useState<string>('ALL');
   const [search, setSearch] = useState('');
   const [refreshing, setRefreshing] = useState(false);
-  const [toast, setToast] = useState<{ visible: boolean; msg: string; en: string }>({ visible: false, msg: '', en: '' });
 
   const handleRefresh = () => {
     setRefreshing(true);
     setTimeout(() => {
       setRefreshing(false);
-      setToast({ visible: true, msg: 'Đã cập nhật dữ liệu mới nhất!', en: 'Live data updated!' });
+      showToast('Đã cập nhật dữ liệu mới nhất!', 'Live data updated!', 'info');
     }, 1200);
   };
 
   const handleExport = () => {
-    setToast({ visible: true, msg: 'Đang trích xuất dữ liệu sự cố...', en: 'Extracting incident data...' });
+    showToast('Đang trích xuất dữ liệu sự cố...', 'Extracting incident data...', 'info');
     
     const headers = [
       { vi: 'Mã sự cố', en: 'Incident ID', key: 'id' },
@@ -69,7 +68,7 @@ export default function LiveIncidentsPage() {
 
     setTimeout(() => {
       exportToExcel(incidents, headers, `Incidents_Report_${selectedDate}`);
-      setToast({ visible: true, msg: 'Đã tải xuống file báo cáo sự cố!', en: 'Incident report downloaded!' });
+      showToast('Đã tải xuống file báo cáo sự cố!', 'Incident report downloaded!', 'P3');
     }, 1500);
   };
 
@@ -82,11 +81,11 @@ export default function LiveIncidentsPage() {
       NOTIFY: { vi: 'Báo Quản lý', en: 'Notified Manager' }
     };
 
-    setToast({ 
-      visible: true, 
-      msg: `Sự cố ${id}: Đã thực hiện thao tác ${actionNames[actionType].vi}!`, 
-      en: `Incident ${id}: Performed ${actionNames[actionType].en}!` 
-    });
+    showToast(
+      `Sự cố ${id}: Đã thực hiện thao tác ${actionNames[actionType].vi}!`, 
+      `Incident ${id}: Performed ${actionNames[actionType].en}!`,
+      'info'
+    );
   };
 
   const getRuleInfo = (code: string) => {
@@ -146,12 +145,7 @@ export default function LiveIncidentsPage() {
         </div>
       </div>
 
-      <Toast 
-        isVisible={toast.visible} 
-        onClose={() => setToast({ ...toast, visible: false })}
-        message={toast.msg}
-        enMessage={toast.en}
-      />
+
 
       {/* Stats Bar */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
