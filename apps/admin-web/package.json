@@ -9,7 +9,6 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@realtime-alert/shared": "workspace:*",
     "@tanstack/react-table": "^8.21.3",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
