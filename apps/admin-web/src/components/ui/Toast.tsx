@@ -8,7 +8,7 @@ interface ToastProps {
   onClose: () => void;
   message: string;
   enMessage?: string;
-  type?: 'success' | 'info';
+  type?: 'success' | 'info' | 'warning' | 'error';
 }
 
 export default function Toast({ isVisible, onClose, message, enMessage, type = 'success' }: ToastProps) {
@@ -30,8 +30,15 @@ export default function Toast({ isVisible, onClose, message, enMessage, type = '
           exit={{ opacity: 0, y: 20, x: '-50%' }}
           className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[200] flex items-center space-x-3 px-5 py-3 rounded-xl bg-[#12182B] border border-borderSubtle shadow-[0_10px_30px_rgba(0,0,0,0.5)] min-w-[300px]"
         >
-          <div className={`p-1.5 rounded-lg ${type === 'success' ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'}`}>
-            {type === 'success' ? <CheckCircle className="w-5 h-5" /> : <Info className="w-5 h-5" />}
+          <div className={`p-1.5 rounded-lg ${
+            type === 'success' ? 'bg-green-500/20 text-green-400' : 
+            type === 'warning' ? 'bg-orange-500/20 text-orange-400' :
+            type === 'error' ? 'bg-red-500/20 text-red-400' :
+            'bg-blue-500/20 text-blue-400'
+          }`}>
+            {type === 'success' ? <CheckCircle className="w-5 h-5" /> : 
+             type === 'error' ? <X className="w-5 h-5" /> :
+             <Info className="w-5 h-5" />}
           </div>
           <div className="flex-1">
             <p className="text-sm font-semibold text-white">{message}</p>

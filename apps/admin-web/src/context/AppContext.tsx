@@ -1,5 +1,6 @@
 'use client';
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import Toast from '@/components/ui/Toast';
 
 interface Rule {
   id: string;
@@ -18,12 +19,14 @@ interface Incident {
   id: string;
   ruleCode: string;
   time: string;
-  status: 'NEW' | 'PROCESSING' | 'RESOLVED' | 'NOTIFY_CEO';
+  status: 'NEW' | 'PROCESSING' | 'RESOLVED' | 'NOTIFY_CEO' | 'ESCALATED';
   team: string;
   assignee: string;
   slaDeadline: string | null;
   dept: string;
 }
+
+type Role = 'Executor' | 'Manager';
 
 interface AppContextType {
   selectedDate: string;
@@ -36,6 +39,9 @@ interface AppContextType {
   deleteRule: (id: string) => void;
   incidents: Incident[];
   handleIncidentAction: (id: string, actionType: 'ACK' | 'RESOLVE' | 'NOTIFY') => void;
+  currentUserRole: Role;
+  setCurrentUserRole: (role: Role) => void;
+  showToast: (msg: string, en?: string, type?: 'success' | 'info' | 'warning' | 'error') => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -43,6 +49,9 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [currentTime, setCurrentTime] = useState('');
+  const [currentUserRole, setCurrentUserRole] = useState<Role>('Executor');
+  const [toast, setToast] = useState<{ visible: boolean; msg: string; en: string; type: 'success' | 'info' | 'warning' | 'error' }>({ visible: false, msg: '', en: '', type: 'success' });
+
   const [rules, setRules] = useState<Rule[]>([
     { id: 'R1', code: 'A1', name: 'ROAS Drop < 5.5', metric: 'ROAS', condition: '< 5.5', target: '#online-ops', severity: 'P1', cooldown: '15m', status: 'Active', triggers: 12 },
     { id: 'R2', code: 'A2', name: 'CS Response > 5m', metric: 'CS First Response', condition: '> 5 min', target: '#cs-realtime', severity: 'P2', cooldown: '10m', status: 'Active', triggers: 8 },
@@ -58,20 +67,65 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     { id: 'ALT-103', ruleCode: 'A2', time: '13:10', status: 'RESOLVED', team: 'Customer Service', assignee: 'Le Van C', slaDeadline: null, dept: 'CS' },
     { id: 'ALT-104', ruleCode: 'A4', time: '11:30', status: 'NOTIFY_CEO', team: 'Offline Sales', assignee: 'Pham Thi D', slaDeadline: null, dept: 'Offline' },
     { id: 'ALT-105', ruleCode: 'A1', time: '10:15', status: 'RESOLVED', team: 'Online Sales', assignee: 'Hoang Van E', slaDeadline: null, dept: 'Online' },
-    { id: 'ALT-106', ruleCode: 'A5', time: '09:50', status: 'NEW', team: 'Logistics', assignee: 'Vu Thi F', slaDeadline: new Date(Date.now() - 5 * 60000).toISOString(), dept: 'Logistics' },
+    { id: 'ALT-106', ruleCode: 'A5', time: '09:50', status: 'NEW', team: 'Logistics', assignee: 'Vu Thi F', slaDeadline: new Date(Date.now() + 1 * 60000).toISOString(), dept: 'Logistics' }, // Near expiry for testing
     { id: 'ALT-107', ruleCode: 'A6', time: '09:20', status: 'PROCESSING', team: 'Online Sales', assignee: 'Nguyen Van G', slaDeadline: new Date(Date.now() + 2 * 60000).toISOString(), dept: 'Online' },
     { id: 'ALT-108', ruleCode: 'A2', time: '08:45', status: 'RESOLVED', team: 'Customer Service', assignee: 'Le Thi H', slaDeadline: null, dept: 'CS' },
   ]);
 
+  // Request Notification Permission
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  const showToast = (msg: string, en: string = '', type: 'success' | 'info' | 'warning' | 'error' = 'info') => {
+    setToast({ visible: true, msg, en, type });
+  };
+
+  const sendBrowserNotification = (title: string, body: string) => {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification(title, { body, icon: '/favicon.ico' });
+    }
+  };
+
+  // Clock Update & SLA Auto-Escalation Loop
   useEffect(() => {
     const updateTime = () => {
       const now = new Date();
       setCurrentTime(now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+      
+      // Auto Escalation Logic
+      setIncidents(prevIncidents => {
+        let hasChanges = false;
+        const updated = prevIncidents.map(inc => {
+          if ((inc.status === 'NEW' || inc.status === 'PROCESSING') && inc.slaDeadline) {
+            const targetTime = new Date(inc.slaDeadline).getTime();
+            if (now.getTime() >= targetTime) {
+              hasChanges = true;
+              
+              // Trigger Notifications based on Role
+              if (currentUserRole === 'Executor') {
+                showToast(`Sự cố ${inc.id} đã bị chuyển lên quản lý`, 'Do chưa xử lý nên đã được chuyển lên cấp quản lý', 'warning');
+              } else if (currentUserRole === 'Manager') {
+                showToast(`[PING] Sự cố ${inc.id} quá hạn SLA!`, 'Sự cố cần sự can thiệp của Quản lý', 'error');
+                sendBrowserNotification('Báo Động SLA (Manager)', `Sự cố ${inc.id} vượt quá ngưỡng an toàn. Yêu cầu xử lý gấp!`);
+              }
+
+              return { ...inc, status: 'ESCALATED', slaDeadline: null };
+            }
+          }
+          return inc;
+        });
+        
+        return hasChanges ? updated : prevIncidents;
+      });
     };
+    
     updateTime();
     const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [currentUserRole]);
 
   const addRule = (newRule: Omit<Rule, 'id' | 'triggers'>) => {
     const rule: Rule = {
@@ -101,7 +155,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           return { 
             ...inc, 
             status: 'PROCESSING', 
-            slaDeadline: new Date(Date.now() + 30 * 60000).toISOString() 
+            // 10 minutes for PROCESSING
+            slaDeadline: new Date(Date.now() + 10 * 60000).toISOString() 
           };
         }
         if (actionType === 'RESOLVE') {
@@ -119,9 +174,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     <AppContext.Provider value={{ 
       selectedDate, setSelectedDate, currentTime, 
       rules, addRule, updateRule, toggleRule, deleteRule,
-      incidents, handleIncidentAction
+      incidents, handleIncidentAction,
+      currentUserRole, setCurrentUserRole,
+      showToast
     }}>
       {children}
+      <Toast 
+        isVisible={toast.visible} 
+        onClose={() => setToast(prev => ({ ...prev, visible: false }))}
+        message={toast.msg}
+        enMessage={toast.en}
+        type={toast.type as any}
+      />
     </AppContext.Provider>
   );
 }

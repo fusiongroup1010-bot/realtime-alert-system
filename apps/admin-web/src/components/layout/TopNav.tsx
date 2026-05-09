@@ -5,7 +5,7 @@ import { useAppContext } from '@/context/AppContext';
 
 export default function TopNav() {
   const pathname = usePathname();
-  const { selectedDate, setSelectedDate, currentTime } = useAppContext();
+  const { selectedDate, setSelectedDate, currentTime, currentUserRole, setCurrentUserRole } = useAppContext();
   
   const getPageName = () => {
     if (pathname === '/') return { vi: 'Tháp Điều Khiển', en: 'Control Tower' };
@@ -40,6 +40,21 @@ export default function TopNav() {
             <span className="text-sm font-mono font-bold text-white leading-none">{currentTime}</span>
           </div>
           <span className="text-[8px] text-textSecondary uppercase mt-1">Giờ hệ thống / Local Time</span>
+        </div>
+
+        {/* Role Switcher */}
+        <div className="flex items-center bg-surface border border-borderSubtle rounded-xl px-3 py-1.5 space-x-2 hover:border-accentGlow transition-colors">
+          <div className="flex flex-col">
+            <span className="text-[8px] text-textSecondary uppercase font-bold leading-tight">Quyền / Role</span>
+            <select 
+              value={currentUserRole}
+              onChange={(e) => setCurrentUserRole(e.target.value as any)}
+              className="bg-transparent text-xs font-semibold text-white focus:outline-none cursor-pointer"
+            >
+              <option value="Executor" className="bg-surface text-white">Executor</option>
+              <option value="Manager" className="bg-surface text-white">Manager</option>
+            </select>
+          </div>
         </div>
 
         {/* Date Picker / Calendar */}

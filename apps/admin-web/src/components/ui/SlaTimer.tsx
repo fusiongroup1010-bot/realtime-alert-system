@@ -16,7 +16,7 @@ export default function SlaTimer({ deadline }: SlaTimerProps) {
     const update = () => {
       const now = new Date().getTime();
       const diff = Math.floor((target - now) / 1000);
-      setTimeLeft(diff);
+      setTimeLeft(diff > 0 ? diff : 0);
     };
 
     update();
@@ -24,11 +24,11 @@ export default function SlaTimer({ deadline }: SlaTimerProps) {
     return () => clearInterval(interval);
   }, [deadline]);
 
-  const isOverdue = timeLeft < 0;
+  const isOverdue = timeLeft <= 0;
   const absSeconds = Math.abs(timeLeft);
   const minutes = Math.floor(absSeconds / 60);
   const seconds = absSeconds % 60;
-  const display = `${isOverdue ? '-' : ''}${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  const display = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 
   return (
     <div className={clsx(

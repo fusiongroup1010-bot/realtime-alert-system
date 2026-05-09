@@ -10,9 +10,8 @@ import SlaTimer from '@/components/ui/SlaTimer';
 import { exportToExcel } from '@/utils/export';
 
 export default function AlertTable() {
-  const { rules, incidents } = useAppContext();
+  const { rules, incidents, showToast } = useAppContext();
   const [selectedAlert, setSelectedAlert] = useState<any>(null);
-  const [toast, setToast] = useState<{ visible: boolean; msg: string; en: string }>({ visible: false, msg: '', en: '' });
 
   const getRuleInfo = (code: string) => {
     const rule = rules.find(r => r.code === code);
@@ -23,7 +22,7 @@ export default function AlertTable() {
   };
 
   const handleExport = () => {
-    setToast({ visible: true, msg: 'Đang trích xuất dữ liệu cảnh báo...', en: 'Exporting alert data...' });
+    showToast('Đang trích xuất dữ liệu cảnh báo...', 'Exporting alert data...', 'info');
     
     const headers = [
       { vi: 'ID Sự cố', en: 'Incident ID', key: 'id' },
@@ -43,7 +42,7 @@ export default function AlertTable() {
 
     setTimeout(() => {
       exportToExcel(dataToExport, headers, `Alerts_Summary_${new Date().toISOString().split('T')[0]}`);
-      setToast({ visible: true, msg: 'Đã tải xuống file alerts_summary.csv!', en: 'Downloaded alerts_summary.csv!' });
+      showToast('Đã tải xuống file alerts_summary.csv!', 'Downloaded alerts_summary.csv!', 'success');
     }, 1500);
   };
 
@@ -157,6 +156,7 @@ export default function AlertTable() {
                     <td className="px-6 py-4">
                       <span className={clsx(
                         "inline-flex items-center text-xs font-semibold",
+                        alert.status === 'ESCALATED' ? "text-red-500 animate-pulse" :
                         alert.status === 'NEW' ? "text-red-400" : 
                         alert.status === 'PROCESSING' ? "text-blue-400" : 
                         alert.status === 'NOTIFY_CEO' ? "text-purple-400" :
@@ -190,12 +190,6 @@ export default function AlertTable() {
         isOpen={!!selectedAlert} 
         onClose={() => setSelectedAlert(null)} 
         incident={selectedAlert} 
-      />
-      <Toast 
-        isVisible={toast.visible} 
-        onClose={() => setToast({ ...toast, visible: false })}
-        message={toast.msg}
-        enMessage={toast.en}
       />
     </>
   );
