@@ -1,12 +1,19 @@
 'use client';
-import { LayoutDashboard, ShieldAlert, Settings, ScrollText, Users, Activity, Puzzle, Sparkles } from 'lucide-react';
+import { LayoutDashboard, ShieldAlert, Settings, ScrollText, Upload, Puzzle, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import clsx from 'clsx';
 import { motion } from 'framer-motion';
 
+import { useAppContext } from '@/context/AppContext';
+
 export default function Sidebar() {
   const pathname = usePathname();
+  const { currentUserRole } = useAppContext();
+
+  const userProfile = currentUserRole === 'Manager' 
+    ? { name: 'Trần Thị Quản Lý', id: 'ID-MGR-01', initials: 'TL' }
+    : { name: 'Nguyễn Văn A', id: 'ID-EXEC-01', initials: 'VA' };
 
   const menuGroups = [
     {
@@ -18,19 +25,12 @@ export default function Sidebar() {
       ]
     },
     {
-      title: 'PHÂN TÍCH / ANALYTICS',
+      title: 'DỮ LIỆU / DATA',
       items: [
+        { name: 'Nạp Dữ Liệu / Data Upload', href: '/integrations', icon: Upload },
         { name: 'Nhật Ký Hệ Thống / Audit History', href: '/audit', icon: ScrollText },
-        { name: 'Sức Khỏe Hệ Thống / System Health', href: '/health', icon: Activity },
       ]
     },
-    {
-      title: 'QUẢN LÝ / MANAGEMENT',
-      items: [
-        { name: 'Lịch Trực / Shift Roster', href: '/shifts', icon: Users },
-        { name: 'Tích Hợp / Integrations', href: '/integrations', icon: Puzzle },
-      ]
-    }
   ];
 
   return (
@@ -91,16 +91,16 @@ export default function Sidebar() {
       </nav>
       
       <div className="p-4 border-t border-borderSubtle">
-        <div className="flex items-center bg-surface/50 p-3 rounded-xl border border-borderSubtle hover:bg-surface transition-colors cursor-pointer">
+        <div className="flex items-center bg-surface/50 p-3 rounded-xl border border-borderSubtle hover:bg-surface transition-colors cursor-pointer group">
           <div className="relative">
-            <div className="w-9 h-9 rounded-full bg-indigo-500/20 border border-indigo-500/50 flex items-center justify-center text-sm font-bold text-indigo-400">
-              CT
+            <div className="w-9 h-9 rounded-full bg-indigo-500/20 border border-indigo-500/50 flex items-center justify-center text-sm font-bold text-indigo-400 group-hover:bg-indigo-500/30 transition-colors">
+              {userProfile.initials}
             </div>
             <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-resolved rounded-full border-2 border-background"></div>
           </div>
           <div className="ml-3 overflow-hidden">
-            <p className="text-sm font-medium text-white truncate">Báo Quản lý / Notify to Manager</p>
-            <p className="text-xs text-textSecondary truncate">Truy Cập Hệ Thống / Control Access</p>
+            <p className="text-sm font-medium text-white truncate">{userProfile.name}</p>
+            <p className="text-xs text-textSecondary truncate">{userProfile.id}</p>
           </div>
         </div>
       </div>

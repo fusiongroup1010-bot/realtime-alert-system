@@ -2,6 +2,29 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import Toast, { ToastData, SeverityType } from '@/components/ui/Toast';
 
+// ─── Storage versioning (bump to reset localStorage on schema changes) ───────
+const STORAGE_VERSION = 'v3';
+
+// ─── Personnel mapping per team ───────────────────────────────────────────────
+export const PERSONNEL: Record<string, { executor: string; manager: string }> = {
+  'Online Sales':     { executor: 'Nguyễn Văn A',    manager: 'Trần Thị Quản Lý' },
+  'Logistics':        { executor: 'Trần Thị B',       manager: 'Lê Văn Trưởng Nhóm' },
+  'Customer Service': { executor: 'Lê Văn C',         manager: 'Phạm Thị Manager' },
+  'Offline':          { executor: 'Phạm Thị D',       manager: 'Hoàng Văn Manager' },
+  'System':           { executor: 'Hệ thống / System', manager: 'Hệ thống / System' },
+};
+
+// ─── ID Generator: FS-10AB-{ruleCode} where AB = 01, 02, 03... ───────────────
+function generateIncidentId(ruleCode: string): string {
+  const counterKey = 'alert_system_incident_counter';
+  const current = parseInt(localStorage.getItem(counterKey) || '0', 10);
+  const next = current + 1;
+  localStorage.setItem(counterKey, String(next));
+  const padded = String(next).padStart(2, '0');
+  return `FS-10${padded}-${ruleCode}`;
+}
+
+// ─── Interfaces ───────────────────────────────────────────────────────────────
 interface Rule {
   id: string;
   code: string;
@@ -17,11 +40,13 @@ interface Rule {
 
 interface Incident {
   id: string;
+  date: string;           // YYYY-MM-DD — which day this incident occurred
   ruleCode: string;
   time: string;
   status: 'NEW' | 'PROCESSING' | 'RESOLVED' | 'NOTIFY_CEO' | 'ESCALATED';
   team: string;
-  assignee: string;
+  assigneeExecutor: string;
+  assigneeManager: string;
   slaDeadline: string | null;
   dept: string;
 }
@@ -48,6 +73,8 @@ interface AppContextType {
   toggleRule: (id: string) => void;
   deleteRule: (id: string) => void;
   incidents: Incident[];
+  addIncident: (incident: Omit<Incident, 'id'>) => void;
+  evaluateMetrics: (metrics: Record<string, number>) => void;
   handleIncidentAction: (id: string, actionType: 'ACK' | 'RESOLVE' | 'NOTIFY') => void;
   currentUserRole: Role;
   setCurrentUserRole: (role: Role) => void;
@@ -59,193 +86,296 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
+// ─── Default data ─────────────────────────────────────────────────────────────
+const DEFAULT_RULES: Rule[] = [
+  { id: 'R1', code: 'A1', name: 'ROAS Drop < 5.5',     metric: 'ROAS',             condition: '< 5.5',  target: '#online-ops',     severity: 'P1', cooldown: '15m', status: 'Active', triggers: 12 },
+  { id: 'R2', code: 'A2', name: 'CS Response > 5m',    metric: 'CS First Response', condition: '> 5 min', target: '#cs-realtime',    severity: 'P2', cooldown: '10m', status: 'Active', triggers: 8  },
+  { id: 'R3', code: 'A3', name: 'Stock Cover < 1.5x',  metric: 'Stock Cover Ratio', condition: '< 1.5x', target: '#logistics-stock', severity: 'P2', cooldown: '30m', status: 'Active', triggers: 4  },
+];
+
+const TODAY = new Date().toISOString().split('T')[0];
+const YESTERDAY = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+const TWO_DAYS_AGO = new Date(Date.now() - 2 * 86400000).toISOString().split('T')[0];
+
+const DEFAULT_INCIDENTS: Incident[] = [
+  {
+    id: 'FS-1001-A1', date: TODAY, ruleCode: 'A1', time: '14:05', status: 'NEW',
+    team: 'Online Sales', dept: 'Online',
+    assigneeExecutor: PERSONNEL['Online Sales'].executor,
+    assigneeManager:  PERSONNEL['Online Sales'].manager,
+    slaDeadline: new Date(Date.now() + 15 * 60000).toISOString(),
+  },
+  {
+    id: 'FS-1002-A3', date: TODAY, ruleCode: 'A3', time: '13:42', status: 'PROCESSING',
+    team: 'Logistics', dept: 'Logistics',
+    assigneeExecutor: PERSONNEL['Logistics'].executor,
+    assigneeManager:  PERSONNEL['Logistics'].manager,
+    slaDeadline: new Date(Date.now() + 8 * 60000).toISOString(),
+  },
+  {
+    id: 'FS-1003-A2', date: TODAY, ruleCode: 'A2', time: '13:10', status: 'RESOLVED',
+    team: 'Customer Service', dept: 'CS',
+    assigneeExecutor: PERSONNEL['Customer Service'].executor,
+    assigneeManager:  PERSONNEL['Customer Service'].manager,
+    slaDeadline: null,
+  },
+  {
+    id: 'FS-1004-A1', date: YESTERDAY, ruleCode: 'A1', time: '10:15', status: 'RESOLVED',
+    team: 'Online Sales', dept: 'Online',
+    assigneeExecutor: PERSONNEL['Online Sales'].executor,
+    assigneeManager:  PERSONNEL['Online Sales'].manager,
+    slaDeadline: null,
+  },
+  {
+    id: 'FS-1005-A2', date: YESTERDAY, ruleCode: 'A2', time: '08:45', status: 'RESOLVED',
+    team: 'Customer Service', dept: 'CS',
+    assigneeExecutor: PERSONNEL['Customer Service'].executor,
+    assigneeManager:  PERSONNEL['Customer Service'].manager,
+    slaDeadline: null,
+  },
+  {
+    id: 'FS-1006-A3', date: TWO_DAYS_AGO, ruleCode: 'A3', time: '11:20', status: 'RESOLVED',
+    team: 'Logistics', dept: 'Logistics',
+    assigneeExecutor: PERSONNEL['Logistics'].executor,
+    assigneeManager:  PERSONNEL['Logistics'].manager,
+    slaDeadline: null,
+  },
+];
+
+// ─── Provider ─────────────────────────────────────────────────────────────────
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [currentTime, setCurrentTime] = useState('');
+  const [currentTime, setCurrentTime]   = useState('');
   const [currentUserRole, setCurrentUserRole] = useState<Role>('Executor');
   const [activeToasts, setActiveToasts] = useState<ToastData[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  
-  // Refs to avoid stale closures in interval
+
   const incidentsRef = useRef<Incident[]>([]);
-  const rulesRef = useRef<Rule[]>([]);
-  const roleRef = useRef<Role>('Executor');
+  const rulesRef     = useRef<Rule[]>([]);
+  const roleRef      = useRef<Role>('Executor');
 
-  const [rules, setRules] = useState<Rule[]>([
-    { id: 'R1', code: 'A1', name: 'ROAS Drop < 5.5', metric: 'ROAS', condition: '< 5.5', target: '#online-ops', severity: 'P1', cooldown: '15m', status: 'Active', triggers: 12 },
-    { id: 'R2', code: 'A2', name: 'CS Response > 5m', metric: 'CS First Response', condition: '> 5 min', target: '#cs-realtime', severity: 'P2', cooldown: '10m', status: 'Active', triggers: 8 },
-    { id: 'R3', code: 'A3', name: 'Stock Cover < 1.5x', metric: 'Stock Cover Ratio', condition: '< 1.5x', target: '#logistics-stock', severity: 'P2', cooldown: '30m', status: 'Active', triggers: 4 },
-    { id: 'R4', code: 'A4', name: 'Offline Popup Low Perf', metric: 'Popup Conversion', condition: '< 2%', target: '#offline-field', severity: 'P3', cooldown: '60m', status: 'Paused', triggers: 1 },
-    { id: 'R5', code: 'A5', name: 'Delivery SLA Breach', metric: 'Delivery Time', condition: '> 48h', target: '#logistics-stock', severity: 'P1', cooldown: '20m', status: 'Active', triggers: 3 },
-    { id: 'R6', code: 'A6', name: 'Cart Abandonment Spike', metric: 'Cart Abandon Rate', condition: '> 75%', target: '#online-ops', severity: 'P3', cooldown: '45m', status: 'Active', triggers: 6 },
-  ]);
+  const [rules,     setRules]     = useState<Rule[]>([]);
+  const [incidents, setIncidents] = useState<Incident[]>([]);
 
-  const [incidents, setIncidents] = useState<Incident[]>([
-    { id: 'ALT-101', ruleCode: 'A1', time: '14:05', status: 'NEW', team: 'Online Sales', assignee: 'Nguyen Van A', slaDeadline: new Date(Date.now() + 15 * 60000).toISOString(), dept: 'Online' },
-    { id: 'ALT-102', ruleCode: 'A3', time: '13:42', status: 'PROCESSING', team: 'Logistics', assignee: 'Tran Thi B', slaDeadline: new Date(Date.now() + 8 * 60000).toISOString(), dept: 'Logistics' },
-    { id: 'ALT-103', ruleCode: 'A2', time: '13:10', status: 'RESOLVED', team: 'Customer Service', assignee: 'Le Van C', slaDeadline: null, dept: 'CS' },
-    { id: 'ALT-104', ruleCode: 'A4', time: '11:30', status: 'NOTIFY_CEO', team: 'Offline Sales', assignee: 'Pham Thi D', slaDeadline: null, dept: 'Offline' },
-    { id: 'ALT-105', ruleCode: 'A1', time: '10:15', status: 'RESOLVED', team: 'Online Sales', assignee: 'Hoang Van E', slaDeadline: null, dept: 'Online' },
-    { id: 'ALT-106', ruleCode: 'A5', time: '09:50', status: 'NEW', team: 'Logistics', assignee: 'Vu Thi F', slaDeadline: new Date(Date.now() + 1 * 60000).toISOString(), dept: 'Logistics' },
-    { id: 'ALT-107', ruleCode: 'A6', time: '09:20', status: 'PROCESSING', team: 'Online Sales', assignee: 'Nguyen Van G', slaDeadline: new Date(Date.now() + 2 * 60000).toISOString(), dept: 'Online' },
-    { id: 'ALT-108', ruleCode: 'A2', time: '08:45', status: 'RESOLVED', team: 'Customer Service', assignee: 'Le Thi H', slaDeadline: null, dept: 'CS' },
-  ]);
+  // ── Initialize: check storage version, load or set defaults ────────────────
+  useEffect(() => {
+    const storedVersion = localStorage.getItem('alert_system_version');
 
+    // If version mismatch, clear old storage and reinitialise
+    if (storedVersion !== STORAGE_VERSION) {
+      localStorage.removeItem('alert_system_rules');
+      localStorage.removeItem('alert_system_incidents');
+      localStorage.removeItem('alert_system_incident_counter');
+      localStorage.setItem('alert_system_version', STORAGE_VERSION);
+      // Seed counter so next new incident starts at 6
+      localStorage.setItem('alert_system_incident_counter', '5');
+    }
+
+    const savedRules     = localStorage.getItem('alert_system_rules');
+    const savedIncidents = localStorage.getItem('alert_system_incidents');
+
+    setRules(savedRules ? JSON.parse(savedRules) : DEFAULT_RULES);
+
+    if (savedIncidents) {
+      // Migration: add date field to old incidents that don't have it
+      const parsed: any[] = JSON.parse(savedIncidents);
+      const today = new Date().toISOString().split('T')[0];
+      const migrated = parsed.map(inc => (inc.date ? inc : { ...inc, date: today }));
+      setIncidents(migrated);
+    } else {
+      setIncidents(DEFAULT_INCIDENTS);
+    }
+  }, []);
+
+  // ── Persist state to localStorage ─────────────────────────────────────────
+  useEffect(() => { if (rules.length > 0)     localStorage.setItem('alert_system_rules',     JSON.stringify(rules));     }, [rules]);
+  useEffect(() => { if (incidents.length > 0) localStorage.setItem('alert_system_incidents', JSON.stringify(incidents)); }, [incidents]);
+
+  // ── Keep refs fresh ────────────────────────────────────────────────────────
   useEffect(() => {
     incidentsRef.current = incidents;
-    rulesRef.current = rules;
-    roleRef.current = currentUserRole;
+    rulesRef.current     = rules;
+    roleRef.current      = currentUserRole;
   }, [incidents, rules, currentUserRole]);
 
-  // Request Notification Permission
+  // ── Request browser notification permission ─────────────────────────────────
   useEffect(() => {
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission();
     }
   }, []);
 
+  // ── Toast helpers ──────────────────────────────────────────────────────────
   const showToast = (message: string, enMessage: string = '', type: SeverityType = 'info', incidentId?: string) => {
     const id = incidentId ? `toast-${incidentId}` : `toast-${Date.now()}-${Math.random()}`;
     setActiveToasts(prev => {
-      // Avoid duplicate toasts for the same incident
       if (incidentId && prev.some(t => t.id === id)) return prev;
       return [...prev, { id, message, enMessage, type }];
     });
   };
 
-  const removeToast = (id: string) => {
-    setActiveToasts(prev => prev.filter(t => t.id !== id));
-  };
+  const removeToast = (id: string) => setActiveToasts(prev => prev.filter(t => t.id !== id));
 
+  // ── Notification helpers ───────────────────────────────────────────────────
   const addNotification = (msg: string, en: string, severity: SeverityType, incidentId: string) => {
     setNotifications(prev => {
-      // Prevent duplicates for same incident
       if (prev.some(n => n.incidentId === incidentId)) return prev;
-      
-      const newItem: NotificationItem = {
+      return [{
         id: `NOTIF-${Date.now()}`,
-        msg,
-        en,
+        msg, en, severity,
         time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-        severity,
         read: false,
-        incidentId
-      };
-      return [newItem, ...prev];
+        incidentId,
+      }, ...prev];
     });
   };
 
-  const markNotificationsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-  };
+  const markNotificationsRead = () => setNotifications(prev => prev.map(n => ({ ...n, read: true })));
 
   const sendBrowserNotification = (title: string, body: string) => {
     if ('Notification' in window && Notification.permission === 'granted') {
-      const notification = new Notification(title, { body, icon: '/favicon.ico' });
-      notification.onclick = function() {
-        window.open('https://fusiongroup1010-bot.github.io/realtime-alert-system/', '_blank');
-        window.focus();
-        this.close();
-      };
+      new Notification(title, { body, icon: '/favicon.ico' });
     }
   };
 
-  // Clock Update & SLA Auto-Escalation Loop
+  // ── Clock + SLA auto-escalation loop ──────────────────────────────────────
   useEffect(() => {
     const updateTime = () => {
       const now = new Date();
       setCurrentTime(now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-      
-      // Auto Escalation Logic - Process one by one to avoid state race conditions
-      const currentIncidents = incidentsRef.current;
-      const currentRules = rulesRef.current;
-      const currentRole = roleRef.current;
 
-      const toEscalate = currentIncidents.filter(inc => 
-        (inc.status === 'NEW' || inc.status === 'PROCESSING') && 
-        inc.slaDeadline && 
-        now.getTime() >= new Date(inc.slaDeadline).getTime()
+      const toEscalate = incidentsRef.current.filter(inc =>
+        (inc.status === 'NEW' || inc.status === 'PROCESSING') &&
+        inc.slaDeadline && now.getTime() >= new Date(inc.slaDeadline).getTime()
       );
 
       if (toEscalate.length > 0) {
         toEscalate.forEach(inc => {
-          const rule = currentRules.find(r => r.code === inc.ruleCode);
+          const rule     = rulesRef.current.find(r => r.code === inc.ruleCode);
           const severity = (rule ? rule.severity : 'P3') as SeverityType;
-
-          if (currentRole === 'Executor') {
-            showToast(`Sự cố ${inc.id} đã bị chuyển lên quản lý`, 'Do chưa xử lý nên đã được chuyển lên cấp quản lý', 'P2', inc.id);
+          if (roleRef.current === 'Executor') {
+            showToast(`Sự cố ${inc.id} đã bị chuyển lên quản lý`, 'Escalated due to inactivity', 'P2', inc.id);
             addNotification(`Sự cố ${inc.id} đã bị chuyển lên quản lý`, 'Escalated due to inactivity', 'P2', inc.id);
-          } else if (currentRole === 'Manager') {
-            showToast(`[PING] Sự cố ${inc.id} quá hạn SLA!`, 'Sự cố cần sự can thiệp của Quản lý', severity, inc.id);
-            addNotification(`[PING] Sự cố ${inc.id} quá hạn SLA!`, 'Sự cố cần sự can thiệp của Quản lý', severity, inc.id);
-            sendBrowserNotification('Báo Động SLA (Manager)', `Sự cố ${inc.id} vượt quá ngưỡng an toàn. Yêu cầu xử lý gấp!`);
+          } else {
+            showToast(`[PING] Sự cố ${inc.id} quá hạn SLA!`, 'Incident needs Manager intervention', severity, inc.id);
+            addNotification(`[PING] Sự cố ${inc.id} quá hạn SLA!`, 'Needs Manager intervention', severity, inc.id);
+            sendBrowserNotification('Báo Động SLA (Manager)', `Sự cố ${inc.id} vượt quá ngưỡng an toàn!`);
           }
         });
 
-        setIncidents(prev => prev.map(inc => {
-          const escalated = toEscalate.find(e => e.id === inc.id);
-          return escalated ? { ...inc, status: 'ESCALATED', slaDeadline: null } : inc;
-        }));
+        setIncidents(prev => prev.map(inc =>
+          toEscalate.find(e => e.id === inc.id)
+            ? { ...inc, status: 'ESCALATED', slaDeadline: null }
+            : inc
+        ));
       }
     };
-    
+
     updateTime();
     const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
   }, []);
 
+  // ── Rule CRUD ──────────────────────────────────────────────────────────────
   const addRule = (newRule: Omit<Rule, 'id' | 'triggers'>) => {
-    const rule: Rule = {
-      ...newRule,
-      id: `R${rules.length + 1}`,
-      triggers: 0
-    };
-    setRules(prev => [...prev, rule]);
+    setRules(prev => [...prev, { ...newRule, id: `R${prev.length + 1}`, triggers: 0 }]);
   };
 
-  const updateRule = (id: string, updates: Partial<Rule>) => {
+  const updateRule = (id: string, updates: Partial<Rule>) =>
     setRules(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
-  };
 
-  const toggleRule = (id: string) => {
+  const toggleRule = (id: string) =>
     setRules(prev => prev.map(r => r.id === id ? { ...r, status: r.status === 'Active' ? 'Paused' : 'Active' } : r));
+
+  const deleteRule = (id: string) => setRules(prev => prev.filter(r => r.id !== id));
+
+  // ── addIncident (new FS-10AB-Ax format) ───────────────────────────────────
+  const addIncident = (incident: Omit<Incident, 'id'>) => {
+    const id = generateIncidentId(incident.ruleCode);
+    const today = new Date().toISOString().split('T')[0];
+    const newIncident: Incident = { ...incident, id, date: incident.date || today };
+    setIncidents(prev => [newIncident, ...prev]);
+    setRules(prev => prev.map(r => r.code === incident.ruleCode ? { ...r, triggers: r.triggers + 1 } : r));
   };
 
-  const deleteRule = (id: string) => {
-    setRules(prev => prev.filter(r => r.id !== id));
+  // ── evaluateMetrics: compare uploaded data against active rules ────────────
+  const evaluateMetrics = (metrics: Record<string, number>) => {
+    const metricToRule: Record<string, string> = { roas: 'A1', csResponse: 'A2', stockCover: 'A3' };
+    const metricLabels: Record<string, string> = {
+      roas: 'ROAS', csResponse: 'CS First Response', stockCover: 'Stock Cover Ratio',
+    };
+    const teamMap: Record<string, string> = {
+      roas: 'Online Sales', csResponse: 'Customer Service', stockCover: 'Logistics',
+    };
+    const deptMap: Record<string, string> = { roas: 'Online', csResponse: 'CS', stockCover: 'Logistics' };
+
+    Object.entries(metrics).forEach(([metricKey, value]) => {
+      const ruleCode = metricToRule[metricKey];
+      if (!ruleCode) return;
+      const rule = rulesRef.current.find(r => r.code === ruleCode && r.status === 'Active');
+      if (!rule) return;
+
+      // Parse threshold from rule.condition
+      const condMatch = rule.condition.match(/(>|<)\s*([\d.]+)/);
+      if (!condMatch) return;
+      const op        = condMatch[1];
+      const threshold = parseFloat(condMatch[2]);
+      const violated  = op === '<' ? value < threshold : value > threshold;
+
+      if (violated) {
+        const severity    = rule.severity as SeverityType;
+        const teamName    = teamMap[metricKey] || 'System';
+        const incidentId  = generateIncidentId(ruleCode);
+
+        const newInc: Incident = {
+          id:               incidentId,
+          date:             new Date().toISOString().split('T')[0],
+          ruleCode,
+          time:             new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+          status:           'NEW',
+          team:             teamName,
+          dept:             deptMap[metricKey] || 'System',
+          assigneeExecutor: (PERSONNEL[teamName] || PERSONNEL['System']).executor,
+          assigneeManager:  (PERSONNEL[teamName] || PERSONNEL['System']).manager,
+          slaDeadline:      new Date(Date.now() + 15 * 60000).toISOString(),
+        };
+
+        setIncidents(prev => [newInc, ...prev]);
+        setRules(prev => prev.map(r => r.code === ruleCode ? { ...r, triggers: r.triggers + 1 } : r));
+
+        showToast(
+          `🚨 Quy tắc ${ruleCode} bị kích hoạt! ${metricLabels[metricKey]} = ${value}`,
+          `Rule ${ruleCode} triggered! ${metricLabels[metricKey]} = ${value} violates ${rule.condition}`,
+          severity, incidentId
+        );
+        addNotification(
+          `Quy tắc ${ruleCode} kích hoạt: ${rule.name}`,
+          `Rule ${ruleCode} triggered: ${rule.name}`,
+          severity, incidentId
+        );
+      }
+    });
   };
 
+  // ── Incident action handler ────────────────────────────────────────────────
   const handleIncidentAction = (id: string, actionType: 'ACK' | 'RESOLVE' | 'NOTIFY') => {
     setIncidents(prev => prev.map(inc => {
-      if (inc.id === id) {
-        // Remove corresponding toast when handled
-        removeToast(`toast-${id}`);
-        
-        if (actionType === 'ACK') {
-          return { 
-            ...inc, 
-            status: 'PROCESSING', 
-            slaDeadline: new Date(Date.now() + 10 * 60000).toISOString() 
-          };
-        }
-        if (actionType === 'RESOLVE') {
-          return { ...inc, status: 'RESOLVED', slaDeadline: null };
-        }
-        if (actionType === 'NOTIFY') {
-          return { ...inc, status: 'NOTIFY_CEO', slaDeadline: null };
-        }
-      }
+      if (inc.id !== id) return inc;
+      removeToast(`toast-${id}`);
+      if (actionType === 'ACK')     return { ...inc, status: 'PROCESSING',   slaDeadline: new Date(Date.now() + 10 * 60000).toISOString() };
+      if (actionType === 'RESOLVE') return { ...inc, status: 'RESOLVED',      slaDeadline: null };
+      if (actionType === 'NOTIFY')  return { ...inc, status: 'NOTIFY_CEO',    slaDeadline: null };
       return inc;
     }));
   };
 
   return (
-    <AppContext.Provider value={{ 
-      selectedDate, setSelectedDate, currentTime, 
+    <AppContext.Provider value={{
+      selectedDate, setSelectedDate, currentTime,
       rules, addRule, updateRule, toggleRule, deleteRule,
-      incidents, handleIncidentAction,
+      incidents, addIncident, evaluateMetrics, handleIncidentAction,
       currentUserRole, setCurrentUserRole,
-      showToast, notifications, addNotification, markNotificationsRead
+      showToast, notifications, addNotification, markNotificationsRead,
     }}>
       {children}
       <Toast toasts={activeToasts} onClose={removeToast} />
@@ -255,8 +385,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
 export function useAppContext() {
   const context = useContext(AppContext);
-  if (context === undefined) {
-    throw new Error('useAppContext must be used within an AppProvider');
-  }
+  if (context === undefined) throw new Error('useAppContext must be used within an AppProvider');
   return context;
 }

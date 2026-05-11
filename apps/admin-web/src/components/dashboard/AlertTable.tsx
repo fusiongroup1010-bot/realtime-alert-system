@@ -9,9 +9,22 @@ import SlaTimer from '@/components/ui/SlaTimer';
 
 import { exportToExcel } from '@/utils/export';
 
-export default function AlertTable() {
-  const { rules, incidents, showToast } = useAppContext();
+interface AlertTableProps {
+  selectedDate?: string;
+}
+
+export default function AlertTable({ selectedDate }: AlertTableProps) {
+  const { rules, incidents, showToast, currentUserRole } = useAppContext();
   const [selectedAlert, setSelectedAlert] = useState<any>(null);
+
+  // Filter by date if provided
+  const filteredIncidents = selectedDate
+    ? incidents.filter(i => i.date === selectedDate)
+    : incidents;
+
+  // Choose assignee based on current role
+  const getAssignee = (inc: any) =>
+    currentUserRole === 'Manager' ? inc.assigneeManager : inc.assigneeExecutor;
 
   const getRuleInfo = (code: string) => {
     const rule = rules.find(r => r.code === code);
@@ -94,6 +107,12 @@ export default function AlertTable() {
                 </th>
                 <th className="px-6 py-4">
                   <div className="flex flex-col">
+                    <span>Người xử lý</span>
+                    <span className="opacity-60 lowercase font-normal">Assignee</span>
+                  </div>
+                </th>
+                <th className="px-6 py-4">
+                  <div className="flex flex-col">
                     <span>Mức độ</span>
                     <span className="opacity-60 lowercase font-normal">Severity</span>
                   </div>
@@ -119,7 +138,7 @@ export default function AlertTable() {
               </tr>
             </thead>
             <tbody className="divide-y divide-borderSubtle">
-              {incidents.slice(0, 5).map((alert) => {
+              {filteredIncidents.map((alert) => {
                 const ruleInfo = getRuleInfo(alert.ruleCode);
                 return (
                   <tr 
@@ -142,6 +161,14 @@ export default function AlertTable() {
                     <td className="px-6 py-4">
                       <p className="text-white font-medium">{ruleInfo.name}</p>
                       <p className="text-xs text-textSecondary mt-0.5">{alert.team}</p>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col">
+                        <span className="text-sm text-white">{getAssignee(alert)}</span>
+                        <span className="text-[10px] text-textSecondary mt-0.5">
+                          {currentUserRole === 'Manager' ? 'Quản lý / Manager' : 'Nhân viên / Staff'}
+                        </span>
+                      </div>
                     </td>
                     <td className="px-6 py-4">
                       <span className={clsx(

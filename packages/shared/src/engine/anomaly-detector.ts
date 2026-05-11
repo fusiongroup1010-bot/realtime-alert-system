@@ -1,5 +1,5 @@
 // packages/shared/src/engine/anomaly-detector.ts
-import { RuleConfig, MetricPoint, Severity } from '../types';
+import { RuleConfig, MetricPoint, Severity } from '../types/index.ts';
 
 export class AnomalyDetector {
   /**

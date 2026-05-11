@@ -52,23 +52,5 @@
       { "label": "🔄 Điều chuyển kho", "action": "transfer_stock", "role": "leader" }
     ],
     "escalationPolicy": { "stage1_m": 20, "stage2_m": 40 }
-  },
-  {
-    "code": "A4",
-    "name": "Hiệu suất Popup/QR thấp",
-    "description": "Hiệu suất < 70% KPI hoặc tỷ lệ scan < 15%",
-    "source": "POS_OFFLINE",
-    "metric": "offline_perf",
-    "windowSeconds": 7200,
-    "thresholdExpr": "val < 0.7",
-    "severityFormula: "val < 0.5 ? 'P1' : 'P2'",
-    "channelTarget": "#offline-field",
-    "mentionList": ["ceo_fusion"],
-    "templateId": "OFFLINE_ALERT_TPL",
-    "buttons": [
-      { "label": "✅ Xác nhận", "action": "ack" },
-      { "label": "🎟 Phát Coupon 15%", "action": "push_coupon" }
-    ],
-    "escalationPolicy": { "stage1_m": 30, "stage2_m": 60 }
   }
 ]

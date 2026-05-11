@@ -1,7 +1,7 @@
 // apps/worker/src/index.ts
 import { Queue, Worker, QueueEvents } from 'bullmq';
 import IORedis from 'ioredis';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@realtime-alert/db';
 import { AnomalyDetector, defaultRules } from '@realtime-alert/shared';
 import dotenv from 'dotenv';
 
@@ -49,4 +49,9 @@ async function setupCron() {
   console.log('Anomaly scan cron scheduled.');
 }
 
+
+
 setupCron();
+
+
+

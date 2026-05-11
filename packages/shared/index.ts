@@ -1,6 +1,6 @@
-// packages/shared/src/index.ts
-export * from './types/index.ts';
-import defaultRules from './rules/default-rules.json' with { type: 'json' };
+// packages/shared/index.ts
+export * from './src/types/index.ts';
+import defaultRules from './src/rules/default-rules.json' with { type: 'json' };
 export { defaultRules };
 
 export class AnomalyDetector {
