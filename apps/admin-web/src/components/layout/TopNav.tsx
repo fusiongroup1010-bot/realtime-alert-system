@@ -1,14 +1,15 @@
 'use client';
 import React, { useState } from 'react';
-import { Search, Bell, Clock, Calendar as CalendarIcon, CheckCircle2, AlertTriangle, AlertCircle, Info } from 'lucide-react';
+import { Search, Bell, Clock, Calendar as CalendarIcon, CheckCircle2, AlertTriangle, AlertCircle, Info, LogOut } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useAppContext } from '@/context/AppContext';
 
 export default function TopNav() {
   const pathname = usePathname();
-  const { selectedDate, setSelectedDate, currentTime, currentUserRole, setCurrentUserRole, notifications, markNotificationsRead } = useAppContext();
+  const { selectedDate, setSelectedDate, currentTime, currentUserRole, notifications, markNotificationsRead, currentUser, logout } = useAppContext();
   const [isNotifOpen, setIsNotifOpen] = useState(false);
-  const unreadCount = notifications.filter(n => !n.read).length;  
+  const filteredNotifications = notifications.filter(n => !n.targetRole || n.targetRole === currentUserRole);
+  const unreadCount = filteredNotifications.filter(n => !n.read).length;  
   const getPageName = () => {
     if (pathname === '/') return { vi: 'Tháp Điều Khiển', en: 'Control Tower' };
     if (pathname.startsWith('/incidents')) return { vi: 'Sự Cố Trực Tiếp', en: 'Live Incidents' };
@@ -44,19 +45,19 @@ export default function TopNav() {
           <span className="text-[8px] text-textSecondary uppercase mt-1">Giờ hệ thống / Local Time</span>
         </div>
 
-        {/* Role Switcher */}
-        <div className="flex items-center bg-surface border border-borderSubtle rounded-xl px-3 py-1.5 space-x-2 hover:border-accentGlow transition-colors">
-          <div className="flex flex-col">
-            <span className="text-[8px] text-textSecondary uppercase font-bold leading-tight">Quyền / Role</span>
-            <select 
-              value={currentUserRole}
-              onChange={(e) => setCurrentUserRole(e.target.value as any)}
-              className="bg-transparent text-xs font-semibold text-white focus:outline-none cursor-pointer"
-            >
-              <option value="Executor" className="bg-surface text-white">Executor</option>
-              <option value="Manager" className="bg-surface text-white">Manager</option>
-            </select>
+        {/* User Info & Logout */}
+        <div className="flex items-center space-x-4">
+          <div className="flex flex-col items-end">
+            <span className="text-xs font-bold text-white leading-tight">{currentUser?.name}</span>
+            <span className="text-[10px] text-textSecondary uppercase tracking-tighter">ID: {currentUser?.id}</span>
           </div>
+          <button 
+            onClick={logout}
+            className="p-2 bg-surface border border-borderSubtle rounded-xl hover:border-red-500/50 hover:text-red-400 transition-all text-textSecondary"
+            title="Đăng xuất / Logout"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
         </div>
 
         {/* Date Picker / Calendar */}
@@ -90,17 +91,17 @@ export default function TopNav() {
           {isNotifOpen && (
             <div className="absolute right-0 mt-2 w-80 bg-[#12182B] border border-borderSubtle rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.5)] overflow-hidden z-[100]">
               <div className="px-4 py-3 border-b border-borderSubtle flex justify-between items-center bg-surface/50">
-                <span className="text-sm font-semibold text-white">Thông báo ({notifications.length})</span>
+                <span className="text-sm font-semibold text-white">Thông báo ({filteredNotifications.length})</span>
                 <span className="text-[10px] text-textSecondary uppercase">Hôm nay</span>
               </div>
               <div className="max-h-96 overflow-y-auto">
-                {notifications.length === 0 ? (
+                {filteredNotifications.length === 0 ? (
                   <div className="px-4 py-6 text-center text-textSecondary text-xs">
                     Không có thông báo mới nào
                   </div>
                 ) : (
                   <div className="divide-y divide-borderSubtle">
-                    {notifications.map(notif => (
+                    {filteredNotifications.map(notif => (
                       <div key={notif.id} className="p-4 hover:bg-surface/50 transition-colors flex items-start space-x-3">
                         <div className={`mt-0.5 ${
                           notif.severity === 'P1' ? 'text-red-400' :

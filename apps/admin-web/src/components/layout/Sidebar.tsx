@@ -9,11 +9,13 @@ import { useAppContext } from '@/context/AppContext';
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { currentUserRole } = useAppContext();
+  const { currentUser } = useAppContext();
 
-  const userProfile = currentUserRole === 'Manager' 
-    ? { name: 'Trần Thị Quản Lý', id: 'ID-MGR-01', initials: 'TL' }
-    : { name: 'Nguyễn Văn A', id: 'ID-EXEC-01', initials: 'VA' };
+  const userProfile = {
+    name: currentUser?.name || 'Unknown',
+    id: currentUser?.id || 'ID-UNKNOWN',
+    initials: (currentUser?.name || 'U').split(' ').map(n => n[0]).join('').toUpperCase()
+  };
 
   const menuGroups = [
     {

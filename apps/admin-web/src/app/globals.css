@@ -4,19 +4,51 @@
 
 @layer utilities {
   .glass-panel {
-    background-color: rgba(18, 26, 47, 0.8);
+    background-color: var(--glass-bg);
     backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border-subtle);
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
   }
 }
 
 :root {
   --background: #0B1020;
-  --foreground: #F3F4F6;
+  --surface: #121A2F;
+  --card: #172036;
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --text-primary: #F3F4F6;
+  --text-secondary: #94A3B8;
+  --p1: #EF4444;
+  --p2: #F59E0B;
+  --p3: #3B82F6;
+  --resolved: #10B981;
+  --accent-glow: #06b6d4;
+  --glass-bg: rgba(18, 26, 47, 0.8);
+}
+
+.manager-mode {
+  --background: #0D0D12;
+  --surface: #18181B;
+  --card: #27272A;
+  --border-subtle: rgba(217, 119, 6, 0.1);
+  --accent-glow: #F59E0B; /* Amber/Gold for Manager */
+  --glass-bg: rgba(24, 24, 27, 0.9);
+  --p3: #F59E0B;
 }
 
 body {
-  color: var(--foreground);
+  color: var(--text-primary);
   background: var(--background);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--border-subtle);
+  border-radius: 10px;
 }

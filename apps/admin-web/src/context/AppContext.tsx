@@ -3,7 +3,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import Toast, { ToastData, SeverityType } from '@/components/ui/Toast';
 
 // ─── Storage versioning (bump to reset localStorage on schema changes) ───────
-const STORAGE_VERSION = 'v3';
+const STORAGE_VERSION = 'v4';
 
 // ─── Personnel mapping per team ───────────────────────────────────────────────
 export const PERSONNEL: Record<string, { executor: string; manager: string }> = {
@@ -61,6 +61,13 @@ export interface NotificationItem {
   severity: SeverityType;
   read: boolean;
   incidentId: string;
+  targetRole?: Role;
+}
+
+interface User {
+  id: string;
+  name: string;
+  role: Role;
 }
 
 interface AppContextType {
@@ -78,9 +85,12 @@ interface AppContextType {
   handleIncidentAction: (id: string, actionType: 'ACK' | 'RESOLVE' | 'NOTIFY') => void;
   currentUserRole: Role;
   setCurrentUserRole: (role: Role) => void;
+  currentUser: User | null;
+  login: (id: string, pw: string) => boolean;
+  logout: () => void;
   showToast: (msg: string, en?: string, type?: SeverityType) => void;
   notifications: NotificationItem[];
-  addNotification: (msg: string, en: string, severity: SeverityType, incidentId: string) => void;
+  addNotification: (msg: string, en: string, severity: SeverityType, incidentId: string, targetRole?: Role) => void;
   markNotificationsRead: () => void;
 }
 
@@ -88,9 +98,10 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 // ─── Default data ─────────────────────────────────────────────────────────────
 const DEFAULT_RULES: Rule[] = [
-  { id: 'R1', code: 'A1', name: 'ROAS Drop < 5.5',     metric: 'ROAS',             condition: '< 5.5',  target: '#online-ops',     severity: 'P1', cooldown: '15m', status: 'Active', triggers: 12 },
+  { id: 'R1', code: 'A1', name: 'ROAS Drop < 10',      metric: 'ROAS',             condition: '< 10',   target: '#online-ops',     severity: 'P1', cooldown: '15m', status: 'Active', triggers: 12 },
   { id: 'R2', code: 'A2', name: 'CS Response > 5m',    metric: 'CS First Response', condition: '> 5 min', target: '#cs-realtime',    severity: 'P2', cooldown: '10m', status: 'Active', triggers: 8  },
   { id: 'R3', code: 'A3', name: 'Stock Cover < 1.5x',  metric: 'Stock Cover Ratio', condition: '< 1.5x', target: '#logistics-stock', severity: 'P2', cooldown: '30m', status: 'Active', triggers: 4  },
+  { id: 'R4', code: 'A4', name: 'Shop check in > 20',  metric: 'Shop check in',    condition: '> 20',   target: '#offline-ops',    severity: 'P3', cooldown: '60m', status: 'Active', triggers: 0  },
 ];
 
 const TODAY = new Date().toISOString().split('T')[0];
@@ -149,6 +160,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [currentUserRole, setCurrentUserRole] = useState<Role>('Executor');
   const [activeToasts, setActiveToasts] = useState<ToastData[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
 
   const incidentsRef = useRef<Incident[]>([]);
   const rulesRef     = useRef<Rule[]>([]);
@@ -185,6 +197,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } else {
       setIncidents(DEFAULT_INCIDENTS);
     }
+
+    const savedUser = localStorage.getItem('alert_system_user');
+    if (savedUser) {
+      const user = JSON.parse(savedUser);
+      setCurrentUser(user);
+      setCurrentUserRole(user.role);
+    }
   }, []);
 
   // ── Persist state to localStorage ─────────────────────────────────────────
@@ -217,15 +236,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const removeToast = (id: string) => setActiveToasts(prev => prev.filter(t => t.id !== id));
 
   // ── Notification helpers ───────────────────────────────────────────────────
-  const addNotification = (msg: string, en: string, severity: SeverityType, incidentId: string) => {
+  const addNotification = (msg: string, en: string, severity: SeverityType, incidentId: string, targetRole?: Role) => {
     setNotifications(prev => {
-      if (prev.some(n => n.incidentId === incidentId)) return prev;
+      // Allow multiple notifications for the same incident if they are different messages (e.g. triggered vs escalated)
       return [{
         id: `NOTIF-${Date.now()}`,
         msg, en, severity,
         time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
         read: false,
         incidentId,
+        targetRole,
       }, ...prev];
     });
   };
@@ -254,11 +274,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const rule     = rulesRef.current.find(r => r.code === inc.ruleCode);
           const severity = (rule ? rule.severity : 'P3') as SeverityType;
           if (roleRef.current === 'Executor') {
-            showToast(`Sự cố ${inc.id} đã bị chuyển lên quản lý`, 'Escalated due to inactivity', 'P2', inc.id);
-            addNotification(`Sự cố ${inc.id} đã bị chuyển lên quản lý`, 'Escalated due to inactivity', 'P2', inc.id);
+            showToast(`⚠️ Sự cố ${inc.id} vượt quá SLA - Đã tự động Báo Quản Lý`, 'Auto-escalated to Manager due to SLA timeout', 'P1', inc.id);
+            addNotification(`Sự cố ${inc.id} vượt quá SLA: Đã tự động Báo Quản Lý`, `Incident ${inc.id} escalated to Manager (SLA Timeout)`, 'P1', inc.id, 'Manager');
           } else {
-            showToast(`[PING] Sự cố ${inc.id} quá hạn SLA!`, 'Incident needs Manager intervention', severity, inc.id);
-            addNotification(`[PING] Sự cố ${inc.id} quá hạn SLA!`, 'Needs Manager intervention', severity, inc.id);
+            showToast(`[SLA PING] Sự cố ${inc.id} quá hạn xử lý!`, 'Needs immediate Manager intervention', severity, inc.id);
+            addNotification(`[SLA PING] Sự cố ${inc.id} quá hạn xử lý!`, `Critical SLA timeout for incident ${inc.id}`, severity, inc.id, 'Manager');
             sendBrowserNotification('Báo Động SLA (Manager)', `Sự cố ${inc.id} vượt quá ngưỡng an toàn!`);
           }
         });
@@ -300,14 +320,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ── evaluateMetrics: compare uploaded data against active rules ────────────
   const evaluateMetrics = (metrics: Record<string, number>) => {
-    const metricToRule: Record<string, string> = { roas: 'A1', csResponse: 'A2', stockCover: 'A3' };
+    const metricToRule: Record<string, string> = { roas: 'A1', csResponse: 'A2', stockCover: 'A3', shopCheckIn: 'A4' };
     const metricLabels: Record<string, string> = {
-      roas: 'ROAS', csResponse: 'CS First Response', stockCover: 'Stock Cover Ratio',
+      roas: 'ROAS', csResponse: 'CS First Response', stockCover: 'Stock Cover Ratio', shopCheckIn: 'Shop check in',
     };
     const teamMap: Record<string, string> = {
-      roas: 'Online Sales', csResponse: 'Customer Service', stockCover: 'Logistics',
+      roas: 'Online Sales', csResponse: 'Customer Service', stockCover: 'Logistics', shopCheckIn: 'Offline',
     };
-    const deptMap: Record<string, string> = { roas: 'Online', csResponse: 'CS', stockCover: 'Logistics' };
+    const deptMap: Record<string, string> = { roas: 'Online', csResponse: 'CS', stockCover: 'Logistics', shopCheckIn: 'Offline' };
 
     Object.entries(metrics).forEach(([metricKey, value]) => {
       const ruleCode = metricToRule[metricKey];
@@ -364,9 +384,37 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       removeToast(`toast-${id}`);
       if (actionType === 'ACK')     return { ...inc, status: 'PROCESSING',   slaDeadline: new Date(Date.now() + 10 * 60000).toISOString() };
       if (actionType === 'RESOLVE') return { ...inc, status: 'RESOLVED',      slaDeadline: null };
-      if (actionType === 'NOTIFY')  return { ...inc, status: 'NOTIFY_CEO',    slaDeadline: null };
+      if (actionType === 'NOTIFY') {
+        addNotification(
+          `Nhân viên ${currentUser?.name || ''} đã chuyển sự cố ${id} cho bạn`,
+          `Staff ${currentUser?.name || ''} manually escalated incident ${id}`,
+          'P2', id, 'Manager'
+        );
+        return { ...inc, status: 'NOTIFY_CEO', slaDeadline: null };
+      }
       return inc;
     }));
+  };
+
+  // ── Auth ───────────────────────────────────────────────────────────────────
+  const login = (id: string, pw: string) => {
+    if (pw !== 'FS1234') return false;
+    let user: User | null = null;
+    if (id === 'SaleOnlFS') user = { id, name: 'Nguyễn Văn A', role: 'Executor' };
+    if (id === 'SalOnlMGFS') user = { id, name: 'Trần Thị Quản Lý', role: 'Manager' };
+
+    if (user) {
+      setCurrentUser(user);
+      setCurrentUserRole(user.role);
+      localStorage.setItem('alert_system_user', JSON.stringify(user));
+      return true;
+    }
+    return false;
+  };
+
+  const logout = () => {
+    setCurrentUser(null);
+    localStorage.removeItem('alert_system_user');
   };
 
   return (
@@ -375,6 +423,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       rules, addRule, updateRule, toggleRule, deleteRule,
       incidents, addIncident, evaluateMetrics, handleIncidentAction,
       currentUserRole, setCurrentUserRole,
+      currentUser, login, logout,
       showToast, notifications, addNotification, markNotificationsRead,
     }}>
       {children}

@@ -88,6 +88,98 @@ export default function LiveIncidentsPage() {
     );
   };
 
+  const renderRow = (incident: any, isPreviousDay: boolean = false) => {
+    const ruleInfo = getRuleInfo(incident.ruleCode);
+    return (
+      <tr
+        key={incident.id}
+        className={clsx(
+          "transition-colors group cursor-pointer hover:bg-surface",
+          isPreviousDay ? "bg-surface/20 opacity-80" : "bg-transparent",
+          ruleInfo.severity === 'P1' && incident.status === 'NEW' && !isPreviousDay ? "bg-red-500/5 hover:bg-red-500/10" : ""
+        )}
+      >
+        <td className="px-6 py-4 font-mono text-xs text-white">
+          <span className="flex items-center">
+            {ruleInfo.severity === 'P1' && incident.status === 'NEW' && !isPreviousDay && (
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500 mr-2 animate-pulse shadow-[0_0_5px_rgba(239,68,68,0.8)]" />
+            )}
+            {incident.id}
+          </span>
+        </td>
+        <td className="px-6 py-4 text-xs font-medium text-textSecondary whitespace-nowrap">
+          {incident.date === new Date().toISOString().split('T')[0] ? 'Hôm nay' : incident.date}
+        </td>
+        <td className="px-6 py-4 text-textSecondary">{incident.time}</td>
+        <td className="px-6 py-4">
+          <p className="text-white font-medium">{ruleInfo.name}</p>
+          <p className="text-xs text-textSecondary mt-0.5">{incident.team}</p>
+        </td>
+        <td className="px-6 py-4">
+          <span className={clsx(
+            "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold tracking-wider uppercase border",
+            severityConfig[ruleInfo.severity]
+          )}>
+            {ruleInfo.severity}
+          </span>
+        </td>
+        <td className="px-6 py-4">
+          <span className={clsx(
+            "inline-flex items-center px-2 py-1 rounded-md text-xs font-semibold border",
+            statusBg[incident.status]
+          )}>
+            {incident.status === 'RESOLVED' && <CheckCircle2 className="w-3 h-3 mr-1" />}
+            {incident.status === 'NEW' && <Zap className="w-3 h-3 mr-1" />}
+            {(incident.status === 'NOTIFY_CEO' || incident.status === 'ESCALATED') && <Bell className="w-3 h-3 mr-1" />}
+            {statusLabel[incident.status] || incident.status}
+          </span>
+        </td>
+        <td className="px-6 py-4 text-textSecondary text-sm">{incident.assignee}</td>
+        <td className="px-6 py-4">
+          {incident.slaDeadline ? (
+            <SlaTimer deadline={incident.slaDeadline} />
+          ) : (
+            <span className="text-textSecondary text-xs">--:--</span>
+          )}
+        </td>
+        <td className="px-6 py-4 text-right">
+          <div className="flex items-center justify-end space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            {incident.status === 'NEW' && (
+              <button 
+                onClick={(e) => { e.stopPropagation(); handleAction(incident.id, 'ACK'); }}
+                className="px-3 py-1 text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded hover:bg-blue-500/30 transition-all uppercase flex items-center"
+              >
+                <Zap className="w-3 h-3 mr-1" />
+                Xác nhận / ACK
+              </button>
+            )}
+            {(incident.status === 'NEW' || incident.status === 'PROCESSING') && (
+              <button 
+                onClick={(e) => { e.stopPropagation(); handleAction(incident.id, 'RESOLVE'); }}
+                className="px-3 py-1 text-[10px] font-bold bg-green-500/10 text-green-400 border border-green-500/20 rounded hover:bg-green-500/30 transition-all uppercase flex items-center"
+              >
+                <CheckCircle2 className="w-3 h-3 mr-1" />
+                Xử lý / Resolve
+              </button>
+            )}
+            {incident.status !== 'RESOLVED' && (
+              <button 
+                onClick={(e) => { e.stopPropagation(); handleAction(incident.id, 'NOTIFY'); }}
+                className="px-3 py-1 text-[10px] font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded hover:bg-purple-500/30 transition-all uppercase flex items-center"
+              >
+                <Bell className="w-3 h-3 mr-1" />
+                Báo Quản lý / Notify
+              </button>
+            )}
+            <button className="p-1.5 text-textSecondary hover:text-white bg-background border border-borderSubtle rounded hover:border-white/20 transition-all">
+              <MoreHorizontal className="w-4 h-4" />
+            </button>
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
   const getRuleInfo = (code: string) => {
     const rule = rules.find(r => r.code === code);
     return {
@@ -96,14 +188,27 @@ export default function LiveIncidentsPage() {
     };
   };
 
-  const filtered = incidents.filter(i => {
-    const ruleInfo = getRuleInfo(i.ruleCode);
-    const matchFilter = filter === 'ALL' || i.status === filter;
-    const matchSearch = i.id.toLowerCase().includes(search.toLowerCase()) ||
-      ruleInfo.name.toLowerCase().includes(search.toLowerCase()) ||
-      i.team.toLowerCase().includes(search.toLowerCase());
-    return matchFilter && matchSearch;
-  });
+  const { todayIncidents, previousDayIncidents, prevDateStr } = React.useMemo(() => {
+    const selDate = new Date(selectedDate);
+    const prevDate = new Date(selDate);
+    prevDate.setDate(selDate.getDate() - 1);
+    const pDateStr = prevDate.toISOString().split('T')[0];
+
+    const filterAndSearch = (list: any[]) => list.filter(i => {
+      const ruleInfo = getRuleInfo(i.ruleCode);
+      const matchFilter = filter === 'ALL' || i.status === filter;
+      const matchSearch = i.id.toLowerCase().includes(search.toLowerCase()) ||
+        ruleInfo.name.toLowerCase().includes(search.toLowerCase()) ||
+        i.team.toLowerCase().includes(search.toLowerCase());
+      return matchFilter && matchSearch;
+    });
+
+    return {
+      todayIncidents: filterAndSearch(incidents.filter(i => i.date === selectedDate)),
+      previousDayIncidents: filterAndSearch(incidents.filter(i => i.date === pDateStr)),
+      prevDateStr: pDateStr
+    };
+  }, [incidents, selectedDate, filter, search]);
 
   const counts = {
     ALL: incidents.length,
@@ -221,6 +326,12 @@ export default function LiveIncidentsPage() {
                 </th>
                 <th className="px-6 py-4">
                   <div className="flex flex-col">
+                    <span>Ngày</span>
+                    <span className="opacity-60 lowercase font-normal">Date</span>
+                  </div>
+                </th>
+                <th className="px-6 py-4">
+                  <div className="flex flex-col">
                     <span>Thời gian</span>
                     <span className="opacity-60 lowercase font-normal">Time (GMT+7)</span>
                   </div>
@@ -264,101 +375,44 @@ export default function LiveIncidentsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-borderSubtle">
-              {filtered.length === 0 ? (
+              {/* TODAY SECTION */}
+              <tr className="bg-surface/30">
+                <td colSpan={9} className="px-6 py-2">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-1.5 h-4 bg-accentGlow rounded-full"></div>
+                    <span className="text-xs font-bold text-white uppercase tracking-wider">Sự cố hôm nay / Today's Incidents</span>
+                    <span className="text-[10px] text-textSecondary font-mono">({selectedDate})</span>
+                  </div>
+                </td>
+              </tr>
+              {todayIncidents.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-16 text-center text-textSecondary">
-                    <ShieldAlert className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                    <p className="text-sm">Không tìm thấy sự cố nào / No incidents found</p>
+                  <td colSpan={9} className="px-6 py-8 text-center text-textSecondary italic text-xs">
+                    Không có sự cố mới trong ngày hôm nay / No new incidents today
                   </td>
                 </tr>
               ) : (
-                filtered.map(incident => {
-                  const ruleInfo = getRuleInfo(incident.ruleCode);
-                  return (
-                    <tr
-                      key={incident.id}
-                      className={clsx(
-                        "transition-colors group cursor-pointer hover:bg-surface",
-                        ruleInfo.severity === 'P1' && incident.status === 'NEW' ? "bg-red-500/5 hover:bg-red-500/10" : ""
-                      )}
-                    >
-                      <td className="px-6 py-4 font-mono text-xs text-white">
-                        <span className="flex items-center">
-                          {ruleInfo.severity === 'P1' && incident.status === 'NEW' && (
-                            <span className="w-1.5 h-1.5 rounded-full bg-red-500 mr-2 animate-pulse shadow-[0_0_5px_rgba(239,68,68,0.8)]" />
-                          )}
-                          {incident.id}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-textSecondary">{incident.time}</td>
-                      <td className="px-6 py-4">
-                        <p className="text-white font-medium">{ruleInfo.name}</p>
-                        <p className="text-xs text-textSecondary mt-0.5">{incident.team}</p>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={clsx(
-                          "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold tracking-wider uppercase border",
-                          severityConfig[ruleInfo.severity]
-                        )}>
-                          {ruleInfo.severity}
-                        </span>
-                      </td>
-                    <td className="px-6 py-4">
-                      <span className={clsx(
-                        "inline-flex items-center px-2 py-1 rounded-md text-xs font-semibold border",
-                        statusBg[incident.status]
-                      )}>
-                        {incident.status === 'RESOLVED' && <CheckCircle2 className="w-3 h-3 mr-1" />}
-                        {incident.status === 'NEW' && <Zap className="w-3 h-3 mr-1" />}
-                        {(incident.status === 'NOTIFY_CEO' || incident.status === 'ESCALATED') && <Bell className="w-3 h-3 mr-1" />}
-                        {statusLabel[incident.status] || incident.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-textSecondary text-sm">{incident.assignee}</td>
-                    <td className="px-6 py-4">
-                      {incident.slaDeadline ? (
-                        <SlaTimer deadline={incident.slaDeadline} />
-                      ) : (
-                        <span className="text-textSecondary text-xs">--:--</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {incident.status === 'NEW' && (
-                          <button 
-                            onClick={(e) => { e.stopPropagation(); handleAction(incident.id, 'ACK'); }}
-                            className="px-3 py-1 text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded hover:bg-blue-500/30 transition-all uppercase flex items-center"
-                          >
-                            <Zap className="w-3 h-3 mr-1" />
-                            Xác nhận / ACK
-                          </button>
-                        )}
-                        {(incident.status === 'NEW' || incident.status === 'PROCESSING') && (
-                          <button 
-                            onClick={(e) => { e.stopPropagation(); handleAction(incident.id, 'RESOLVE'); }}
-                            className="px-3 py-1 text-[10px] font-bold bg-green-500/10 text-green-400 border border-green-500/20 rounded hover:bg-green-500/30 transition-all uppercase flex items-center"
-                          >
-                            <CheckCircle2 className="w-3 h-3 mr-1" />
-                            Xử lý / Resolve
-                          </button>
-                        )}
-                        {incident.status !== 'RESOLVED' && (
-                          <button 
-                            onClick={(e) => { e.stopPropagation(); handleAction(incident.id, 'NOTIFY'); }}
-                            className="px-3 py-1 text-[10px] font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded hover:bg-purple-500/30 transition-all uppercase flex items-center"
-                          >
-                            <Bell className="w-3 h-3 mr-1" />
-                            Báo Quản lý / Notify
-                          </button>
-                        )}
-                        <button className="p-1.5 text-textSecondary hover:text-white bg-background border border-borderSubtle rounded hover:border-white/20 transition-all">
-                          <MoreHorizontal className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
+                todayIncidents.map(incident => renderRow(incident, false))
+              )}
+
+              {/* PREVIOUS DAY SECTION */}
+              <tr className="bg-surface/30 border-t border-borderSubtle">
+                <td colSpan={9} className="px-6 py-2">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-1.5 h-4 bg-textSecondary rounded-full"></div>
+                    <span className="text-xs font-bold text-white uppercase tracking-wider">Sự cố ngày hôm trước / Previous Day's Incidents</span>
+                    <span className="text-[10px] text-textSecondary font-mono">({prevDateStr})</span>
+                  </div>
+                </td>
+              </tr>
+              {previousDayIncidents.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="px-6 py-8 text-center text-textSecondary italic text-xs">
+                    Không có sự cố trong ngày hôm trước / No incidents from previous day
+                  </td>
+                </tr>
+              ) : (
+                previousDayIncidents.map(incident => renderRow(incident, true))
               )}
             </tbody>
           </table>

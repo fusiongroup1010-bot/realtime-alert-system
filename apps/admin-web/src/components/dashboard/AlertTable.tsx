@@ -17,10 +17,21 @@ export default function AlertTable({ selectedDate }: AlertTableProps) {
   const { rules, incidents, showToast, currentUserRole } = useAppContext();
   const [selectedAlert, setSelectedAlert] = useState<any>(null);
 
-  // Filter by date if provided
-  const filteredIncidents = selectedDate
-    ? incidents.filter(i => i.date === selectedDate)
-    : incidents;
+  // Filter by date + previous day if provided
+  const { todayIncidents, previousDayIncidents, prevDateStr } = React.useMemo(() => {
+    if (!selectedDate) return { todayIncidents: incidents, previousDayIncidents: [], prevDateStr: '' };
+    
+    const selDate = new Date(selectedDate);
+    const prevDate = new Date(selDate);
+    prevDate.setDate(selDate.getDate() - 1);
+    const pDateStr = prevDate.toISOString().split('T')[0];
+
+    return {
+      todayIncidents: incidents.filter(i => i.date === selectedDate),
+      previousDayIncidents: incidents.filter(i => i.date === pDateStr),
+      prevDateStr: pDateStr
+    };
+  }, [incidents, selectedDate]);
 
   // Choose assignee based on current role
   const getAssignee = (inc: any) =>
@@ -59,6 +70,84 @@ export default function AlertTable({ selectedDate }: AlertTableProps) {
     }, 1500);
   };
 
+  const renderRow = (alert: any, isPreviousDay: boolean = false) => {
+    const ruleInfo = getRuleInfo(alert.ruleCode);
+    return (
+      <tr 
+        key={alert.id} 
+        onClick={() => setSelectedAlert({ ...alert, ...ruleInfo })}
+        className={clsx(
+          "transition-colors group cursor-pointer hover:bg-surface",
+          isPreviousDay ? "bg-surface/20 opacity-80" : "bg-transparent",
+          ruleInfo.severity === 'P1' && alert.status === 'NEW' && !isPreviousDay ? "bg-red-500/5 hover:bg-red-500/10" : ""
+        )}
+      >
+        <td className="px-6 py-4 font-mono text-xs text-white">
+          <span className="flex items-center">
+            {ruleInfo.severity === 'P1' && alert.status === 'NEW' && (
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500 mr-2 animate-pulse shadow-[0_0_5px_rgba(239,68,68,0.8)]"></span>
+            )}
+            {alert.id}
+          </span>
+        </td>
+        <td className="px-6 py-4 text-xs font-medium text-textSecondary whitespace-nowrap">
+          {alert.date === new Date().toISOString().split('T')[0] ? 'Hôm nay' : alert.date}
+        </td>
+        <td className="px-6 py-4 text-textSecondary">{alert.time}</td>
+        <td className="px-6 py-4">
+          <p className="text-white font-medium">{ruleInfo.name}</p>
+          <p className="text-xs text-textSecondary mt-0.5">{alert.team}</p>
+        </td>
+        <td className="px-6 py-4">
+          <div className="flex flex-col">
+            <span className="text-sm text-white">{getAssignee(alert)}</span>
+            <span className="text-[10px] text-textSecondary mt-0.5">
+              {currentUserRole === 'Manager' ? 'Quản lý / Manager' : 'Nhân viên / Staff'}
+            </span>
+          </div>
+        </td>
+        <td className="px-6 py-4">
+          <span className={clsx(
+            "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold tracking-wider uppercase border",
+            ruleInfo.severity === 'P1' ? "bg-red-500/10 text-red-400 border-red-500/20" : 
+            ruleInfo.severity === 'P2' ? "bg-orange-500/10 text-orange-400 border-orange-500/20" : 
+            "bg-blue-500/10 text-blue-400 border-blue-500/20"
+          )}>
+            {ruleInfo.severity}
+          </span>
+        </td>
+        <td className="px-6 py-4">
+          <span className={clsx(
+            "inline-flex items-center text-xs font-semibold",
+            alert.status === 'ESCALATED' ? "text-red-500 animate-pulse" :
+            alert.status === 'NEW' ? "text-red-400" : 
+            alert.status === 'PROCESSING' ? "text-blue-400" : 
+            alert.status === 'NOTIFY_CEO' ? "text-purple-400" :
+            "text-green-400"
+          )}>
+            {alert.status === 'RESOLVED' && <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />}
+            {alert.status === 'NEW' ? 'Mới / New' : 
+             alert.status === 'PROCESSING' ? 'Đang xử lý / Processing' : 
+             alert.status === 'RESOLVED' ? 'Xong / Resolved' : 
+             'Báo Quản lý / Notify to Manager'}
+          </span>
+        </td>
+        <td className="px-6 py-4">
+          {alert.slaDeadline ? (
+            <SlaTimer deadline={alert.slaDeadline} />
+          ) : (
+            <span className="text-textSecondary text-xs">--:--</span>
+          )}
+        </td>
+        <td className="px-6 py-4 text-right">
+          <button className="p-1.5 text-textSecondary hover:text-white opacity-0 group-hover:opacity-100 transition-all">
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </td>
+      </tr>
+    );
+  };
+
   return (
     <>
       <div className="glass-panel rounded-2xl overflow-hidden mt-6">
@@ -92,6 +181,12 @@ export default function AlertTable({ selectedDate }: AlertTableProps) {
                 <th className="px-6 py-4 flex flex-col">
                   <span>ID Sự Cố</span>
                   <span className="opacity-60 lowercase font-normal">Incident ID</span>
+                </th>
+                <th className="px-6 py-4">
+                  <div className="flex flex-col">
+                    <span>Ngày</span>
+                    <span className="opacity-60 lowercase font-normal">Date</span>
+                  </div>
                 </th>
                 <th className="px-6 py-4">
                   <div className="flex flex-col">
@@ -138,79 +233,45 @@ export default function AlertTable({ selectedDate }: AlertTableProps) {
               </tr>
             </thead>
             <tbody className="divide-y divide-borderSubtle">
-              {filteredIncidents.map((alert) => {
-                const ruleInfo = getRuleInfo(alert.ruleCode);
-                return (
-                  <tr 
-                    key={alert.id} 
-                    onClick={() => setSelectedAlert({ ...alert, ...ruleInfo })}
-                    className={clsx(
-                      "transition-colors group cursor-pointer hover:bg-surface",
-                      ruleInfo.severity === 'P1' && alert.status === 'NEW' ? "bg-red-500/5 hover:bg-red-500/10" : ""
-                    )}
-                  >
-                    <td className="px-6 py-4 font-mono text-xs text-white">
-                      <span className="flex items-center">
-                        {ruleInfo.severity === 'P1' && alert.status === 'NEW' && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-red-500 mr-2 animate-pulse shadow-[0_0_5px_rgba(239,68,68,0.8)]"></span>
-                        )}
-                        {alert.id}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-textSecondary">{alert.time}</td>
-                    <td className="px-6 py-4">
-                      <p className="text-white font-medium">{ruleInfo.name}</p>
-                      <p className="text-xs text-textSecondary mt-0.5">{alert.team}</p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col">
-                        <span className="text-sm text-white">{getAssignee(alert)}</span>
-                        <span className="text-[10px] text-textSecondary mt-0.5">
-                          {currentUserRole === 'Manager' ? 'Quản lý / Manager' : 'Nhân viên / Staff'}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={clsx(
-                        "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold tracking-wider uppercase border",
-                        ruleInfo.severity === 'P1' ? "bg-red-500/10 text-red-400 border-red-500/20" : 
-                        ruleInfo.severity === 'P2' ? "bg-orange-500/10 text-orange-400 border-orange-500/20" : 
-                        "bg-blue-500/10 text-blue-400 border-blue-500/20"
-                      )}>
-                        {ruleInfo.severity}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={clsx(
-                        "inline-flex items-center text-xs font-semibold",
-                        alert.status === 'ESCALATED' ? "text-red-500 animate-pulse" :
-                        alert.status === 'NEW' ? "text-red-400" : 
-                        alert.status === 'PROCESSING' ? "text-blue-400" : 
-                        alert.status === 'NOTIFY_CEO' ? "text-purple-400" :
-                        "text-green-400"
-                      )}>
-                        {alert.status === 'RESOLVED' && <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />}
-                        {alert.status === 'NEW' ? 'Mới / New' : 
-                         alert.status === 'PROCESSING' ? 'Đang xử lý / Processing' : 
-                         alert.status === 'RESOLVED' ? 'Xong / Resolved' : 
-                         'Báo Quản lý / Notify to Manager'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      {alert.slaDeadline ? (
-                        <SlaTimer deadline={alert.slaDeadline} />
-                      ) : (
-                        <span className="text-textSecondary text-xs">--:--</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <button className="p-1.5 text-textSecondary hover:text-white opacity-0 group-hover:opacity-100 transition-all">
-                        <ChevronRight className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
+              {/* TODAY SECTION */}
+              <tr className="bg-surface/30">
+                <td colSpan={8} className="px-6 py-2">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-1.5 h-4 bg-accentGlow rounded-full"></div>
+                    <span className="text-xs font-bold text-white uppercase tracking-wider">Sự cố hôm nay / Today's Incidents</span>
+                    <span className="text-[10px] text-textSecondary font-mono">({selectedDate})</span>
+                  </div>
+                </td>
+              </tr>
+              {todayIncidents.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-6 py-8 text-center text-textSecondary italic text-xs">
+                    Không có sự cố mới trong ngày hôm nay / No new incidents today
+                  </td>
+                </tr>
+              ) : (
+                todayIncidents.map((alert) => renderRow(alert, false))
+              )}
+
+              {/* PREVIOUS DAY SECTION */}
+              <tr className="bg-surface/30 border-t border-borderSubtle">
+                <td colSpan={8} className="px-6 py-2">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-1.5 h-4 bg-textSecondary rounded-full"></div>
+                    <span className="text-xs font-bold text-white uppercase tracking-wider">Sự cố ngày hôm trước / Previous Day's Incidents</span>
+                    <span className="text-[10px] text-textSecondary font-mono">({prevDateStr})</span>
+                  </div>
+                </td>
+              </tr>
+              {previousDayIncidents.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-6 py-8 text-center text-textSecondary italic text-xs">
+                    Không có sự cố trong ngày hôm trước / No incidents from previous day
+                  </td>
+                </tr>
+              ) : (
+                previousDayIncidents.map((alert) => renderRow(alert, true))
+              )}
             </tbody>
           </table>
         </div>

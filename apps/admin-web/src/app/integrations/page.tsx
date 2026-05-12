@@ -10,6 +10,7 @@ interface MetricRow {
   roas: string;
   csResponse: string;
   stockCover: string;
+  shopCheckIn: string;
   status: 'pending' | 'evaluated' | 'violation';
   violations: string[];
 }
@@ -18,7 +19,7 @@ const STORAGE_KEY = 'alert_system_data_uploads';
 
 export default function DataUploadPage() {
   const { rules, evaluateMetrics, showToast } = useAppContext();
-  const [form, setForm] = useState({ roas: '', csResponse: '', stockCover: '' });
+  const [form, setForm] = useState({ roas: '', csResponse: '', stockCover: '', shopCheckIn: '' });
   const [history, setHistory] = useState<MetricRow[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -38,9 +39,10 @@ export default function DataUploadPage() {
   const roas_rule = getRuleInfo('A1');
   const cs_rule = getRuleInfo('A2');
   const stock_rule = getRuleInfo('A3');
+  const shop_rule = getRuleInfo('A4');
 
   const evaluateValue = (metricKey: string, value: number): boolean => {
-    const ruleMap: Record<string, string> = { roas: 'A1', csResponse: 'A2', stockCover: 'A3' };
+    const ruleMap: Record<string, string> = { roas: 'A1', csResponse: 'A2', stockCover: 'A3', shopCheckIn: 'A4' };
     const rule = rules.find(r => r.code === ruleMap[metricKey] && r.status === 'Active');
     if (!rule) return false;
     const condMatch = rule.condition.match(/(>|<)\s*([\d.]+)/);
@@ -51,7 +53,7 @@ export default function DataUploadPage() {
   };
 
   const handleSubmit = () => {
-    if (!form.roas && !form.csResponse && !form.stockCover) {
+    if (!form.roas && !form.csResponse && !form.stockCover && !form.shopCheckIn) {
       showToast('Vui lòng nhập ít nhất một chỉ số!', 'Please enter at least one metric!', 'info');
       return;
     }
@@ -62,12 +64,14 @@ export default function DataUploadPage() {
     if (form.roas) metrics.roas = parseFloat(form.roas);
     if (form.csResponse) metrics.csResponse = parseFloat(form.csResponse);
     if (form.stockCover) metrics.stockCover = parseFloat(form.stockCover);
+    if (form.shopCheckIn) metrics.shopCheckIn = parseFloat(form.shopCheckIn);
 
     // Find violations for history row display
     const violations: string[] = [];
     if (form.roas && evaluateValue('roas', parseFloat(form.roas))) violations.push('A1');
     if (form.csResponse && evaluateValue('csResponse', parseFloat(form.csResponse))) violations.push('A2');
     if (form.stockCover && evaluateValue('stockCover', parseFloat(form.stockCover))) violations.push('A3');
+    if (form.shopCheckIn && evaluateValue('shopCheckIn', parseFloat(form.shopCheckIn))) violations.push('A4');
 
     // Trigger rule evaluation → creates incidents in context
     evaluateMetrics(metrics);
@@ -78,6 +82,7 @@ export default function DataUploadPage() {
       roas: form.roas || '-',
       csResponse: form.csResponse || '-',
       stockCover: form.stockCover || '-',
+      shopCheckIn: form.shopCheckIn || '-',
       status: violations.length > 0 ? 'violation' : 'evaluated',
       violations,
     };
@@ -87,7 +92,7 @@ export default function DataUploadPage() {
 
     setTimeout(() => {
       setIsSubmitting(false);
-      setForm({ roas: '', csResponse: '', stockCover: '' });
+      setForm({ roas: '', csResponse: '', stockCover: '', shopCheckIn: '' });
       showToast(
         violations.length > 0
           ? `⚠️ Đã phát hiện ${violations.length} vi phạm! Kiểm tra Bảng Sự Cố.`
@@ -135,6 +140,7 @@ export default function DataUploadPage() {
           { rule: roas_rule, label: 'ROAS', icon: TrendingDown, metricKey: 'roas', unit: '', hint: 'Tỷ lệ ROAS quảng cáo' },
           { rule: cs_rule, label: 'CS Response', icon: Clock, metricKey: 'csResponse', unit: 'phút', hint: 'Thời gian phản hồi CS (phút)' },
           { rule: stock_rule, label: 'Stock Cover', icon: TrendingUp, metricKey: 'stockCover', unit: 'x', hint: 'Hệ số tồn kho an toàn' },
+          { rule: shop_rule, label: 'Shop check in', icon: CheckCircle2, metricKey: 'shopCheckIn', unit: '', hint: 'Số lượng Shop check in' },
         ].map(({ rule, label, icon: Icon, unit, hint }) => (
           <div key={label} className="glass-panel rounded-xl p-4 flex items-start space-x-3">
             <div className={clsx('w-9 h-9 rounded-lg flex items-center justify-center shrink-0',
@@ -282,6 +288,42 @@ export default function DataUploadPage() {
               </p>
             )}
           </div>
+
+          {/* Shop check in */}
+          <div className="space-y-2">
+            <label className="flex items-center gap-1.5 text-xs font-bold text-textSecondary uppercase tracking-wider">
+              Shop check in
+              <span className="text-[10px] font-normal text-accentGlow normal-case">(A4: {shop_rule?.condition ?? 'chưa có'})</span>
+            </label>
+            <div className="relative">
+              <input
+                type="number"
+                placeholder="VD: 25"
+                value={form.shopCheckIn}
+                onChange={e => setForm(f => ({ ...f, shopCheckIn: e.target.value }))}
+                className={clsx(
+                  'w-full bg-background border rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-accentGlow transition-colors',
+                  form.shopCheckIn && shop_rule && evaluateValue('shopCheckIn', parseFloat(form.shopCheckIn))
+                    ? 'border-red-500/60 bg-red-500/5'
+                    : form.shopCheckIn
+                    ? 'border-green-500/50 bg-green-500/5'
+                    : 'border-borderSubtle'
+                )}
+              />
+              {form.shopCheckIn && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2">
+                  {shop_rule && evaluateValue('shopCheckIn', parseFloat(form.shopCheckIn))
+                    ? <AlertTriangle className="w-4 h-4 text-red-400" />
+                    : <CheckCircle2 className="w-4 h-4 text-green-400" />}
+                </span>
+              )}
+            </div>
+            {form.shopCheckIn && shop_rule && evaluateValue('shopCheckIn', parseFloat(form.shopCheckIn)) && (
+              <p className="text-[11px] text-red-400 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" />Vi phạm quy tắc A4 – sẽ tạo sự cố P3!
+              </p>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center justify-between pt-4 border-t border-borderSubtle">
@@ -339,6 +381,9 @@ export default function DataUploadPage() {
                     <div className="flex flex-col"><span>Stock Cover</span><span className="opacity-60 lowercase font-normal">Ratio (x)</span></div>
                   </th>
                   <th className="px-6 py-3">
+                    <div className="flex flex-col"><span>Shop Check In</span><span className="opacity-60 lowercase font-normal">Count</span></div>
+                  </th>
+                  <th className="px-6 py-3">
                     <div className="flex flex-col"><span>Trạng thái</span><span className="opacity-60 lowercase font-normal">Status</span></div>
                   </th>
                   <th className="px-6 py-3">
@@ -371,6 +416,13 @@ export default function DataUploadPage() {
                         {row.stockCover}
                       </span>
                       {row.violations.includes('A3') && <AlertTriangle className="inline w-3 h-3 text-orange-400 ml-1" />}
+                    </td>
+                    <td className="px-6 py-3">
+                      <span className={clsx('font-mono text-sm font-medium',
+                        row.violations.includes('A4') ? 'text-red-400' : 'text-white')}>
+                        {row.shopCheckIn}
+                      </span>
+                      {row.violations.includes('A4') && <AlertTriangle className="inline w-3 h-3 text-red-400 ml-1" />}
                     </td>
                     <td className="px-6 py-3">
                       <span className={clsx('inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold tracking-wider uppercase border', statusBadge[row.status])}>
