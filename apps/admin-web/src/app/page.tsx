@@ -15,7 +15,7 @@ export default function DashboardPage() {
 
   // Filter incidents for the selected date
   const dayIncidents = incidents.filter(i => i.date === selectedDate);
-  const allDatesWithData = [...new Set(incidents.map(i => i.date))].sort().reverse();
+  const allDatesWithData = Array.from(new Set(incidents.map(i => i.date))).sort().reverse();
 
   // ── KPI Calculations (scoped to selectedDate) ─────────────────────────────
   const totalAlerts    = dayIncidents.length;
